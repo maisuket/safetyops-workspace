@@ -17,21 +17,21 @@ Um **ERP modular e escalável** para gestão de equipas técnicas, Segurança do
 
 > 💡 **Dica:** Substitua as imagens abaixo por prints reais do seu sistema
 
-### Dashboard
+### Controle de Folgas
 
-![Dashboard](./docs/images/dashboard.png)
+![Folgas](./docs/controle-folgas-resumo.jpeg)
 
-### Gestão de Equipa
+### Gestão de Equipe
 
-![Equipe](./docs/images/equipe.png)
+![Equipe](./docs/gestao-equipe.jpeg)
 
 ### Módulo de Segurança (SST)
 
-![SST](./docs/images/sst.png)
+![SST](./docs/dashboard-controle-sst.jpeg)
 
-### Banco de Horas
+### Gestão de Saídas
 
-![Banco de Horas](./docs/images/banco-horas.png)
+![Gestão de Saídas](./docs/gestao-saidas.jpeg)
 
 ---
 
