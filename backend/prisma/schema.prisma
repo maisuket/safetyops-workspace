@@ -1,0 +1,40 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Employee {
+  id         String   @id @default(uuid())
+  enrollment String   @unique
+  name       String
+  active     Boolean  @default(true)
+  records    Record[]
+  documents  Document[]
+  createdAt  DateTime @default(now())
+}
+
+model Record {
+  id          String   @id @default(uuid())
+  type        String   // "trabalho" | "folga"
+  date        DateTime
+  local       String?  // Local de Trabalho (ITAM, DENSO, KLABIN, etc)
+  description String?
+  refDate     String?  // Vai armazenar a string gerada pelo frontend com o histórico
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  employeeId  String
+  createdAt   DateTime @default(now())
+}
+
+model Document {
+  id         String   @id @default(uuid())
+  docType    String   // Ex: ASO, NR 35
+  issueDate  DateTime?
+  expiryDate DateTime // Para calcular o prazo de vencimento
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  employeeId String
+  createdAt  DateTime @default(now())
+}
