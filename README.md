@@ -66,7 +66,7 @@ Centralizando tudo em uma única plataforma.
 - Importação CSV
 - OCR com IA (Gemini)
 
-### 🚗 Gestão de Frota
+### 🚗 Gestão de Saidas da equipe
 
 - Controle de saídas
 - Relatórios de deslocamento
@@ -96,27 +96,55 @@ Centralizando tudo em uma única plataforma.
 
 ## ⚙️ Setup Local
 
+### 📋 Pré-requisitos
+
+Antes de começar, certifique-se de ter instalado:
+
+- Node.js (v18 ou superior)
+- NPM (ou Yarn)
+
+---
+
+### 📦 Instalação do Projeto
+
+Clone o repositório:
+
 ```bash
-git clone https://github.com/seu-usuario/safetyops-workspace.git
+git clone https://github.com/mdaisuket/safetyops-workspace.git
 cd safetyops-workspace
+```
+
+Instale todas as dependências do projeto (frontend + backend):
+
+```bash
 npm run install:all
 ```
 
-### Variáveis de ambiente
+> 💡 Este comando utiliza `npm install --prefix` para instalar automaticamente os pacotes em `/backend` e `/frontend`.
 
-**Backend**
+---
+
+### 🔐 Configuração de Ambiente
+
+Crie os arquivos `.env` conforme abaixo:
+
+#### 📁 Backend (`/backend/.env`)
 
 ```env
 DATABASE_URL="file:./dev.db"
 ```
 
-**Frontend**
+#### 📁 Frontend (`/frontend/.env`)
 
 ```env
 VITE_GEMINI_API_KEY="sua_chave_aqui"
 ```
 
-### Banco de dados
+---
+
+### 🗄️ Configuração do Banco de Dados
+
+Execute as migrations do Prisma:
 
 ```bash
 cd backend
@@ -124,20 +152,67 @@ npx prisma migrate dev --name init
 cd ..
 ```
 
-### Executar
+---
+
+### ▶️ Executando o Projeto
+
+Inicie frontend e backend simultaneamente:
 
 ```bash
 npm run dev
 ```
 
+> 🚀 Este comando utiliza o **concurrently** para executar:
+>
+> - NestJS (backend)
+> - React (frontend)
+
 ---
 
-## 🌐 Acesso
+### 🧪 Execução Individual (Opcional)
+
+Caso queira rodar separadamente:
+
+**Backend**
+
+```bash
+npm run dev:backend
+```
+
+**Frontend**
+
+```bash
+npm run dev:frontend
+```
+
+---
+
+### 🌐 Acessos
 
 - Frontend → http://localhost:5173
+- Backend → http://localhost:3000
 - Swagger → http://localhost:3000/api/docs
 
 ---
+
+### ⚠️ Possíveis Problemas
+
+**Porta já em uso**
+
+```bash
+Error: listen EADDRINUSE
+```
+
+Solução: finalize o processo ou altere a porta no backend.
+
+---
+
+**Dependências não instaladas corretamente**
+
+```bash
+rm -rf node_modules
+npm run install:all
+```
 
 ## 🧠 Diferenciais
 
