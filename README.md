@@ -35,29 +35,41 @@ Um **ERP modular e escalável** para gestão de equipas técnicas, Segurança do
 
 ---
 
-## ✨ Funcionalidades
+## 📌 Sobre o Projeto
 
-✔️ Gestão completa de colaboradores
-✔️ Controle de banco de horas
-✔️ Monitoramento de documentos SST (ASO, NR)
-✔️ Alertas de vencimento (semáforo)
-✔️ OCR com IA para leitura de documentos
-✔️ Gestão de frota e deslocamentos
-✔️ Exportação de relatórios (PDF/Excel)
+O **SafetyOps** nasceu da necessidade de eliminar:
+
+- Planilhas descentralizadas
+- Processos manuais
+- Falta de rastreabilidade
+
+Centralizando tudo em uma única plataforma.
 
 ---
 
-## 🧩 Arquitetura
+## 🧩 Módulos Principais
 
-O projeto segue uma estrutura **monorepo**, separando frontend e backend:
+### 👥 Gestão de Equipa
 
-```
-safetyops-workspace/
-├── backend/
-├── frontend/
-├── docs/
-└── README.md
-```
+- Cadastro e gestão de colaboradores
+- Controle de status (ativo/inativo)
+
+### ⚖️ Banco de Horas
+
+- Créditos e débitos
+- Relatórios e exportações
+
+### 🦺 Safety / SST
+
+- Controle de ASOs e NRs
+- Alertas de vencimento
+- Importação CSV
+- OCR com IA (Gemini)
+
+### 🚗 Gestão de Frota
+
+- Controle de saídas
+- Relatórios de deslocamento
 
 ---
 
@@ -68,7 +80,6 @@ safetyops-workspace/
 - React + Vite
 - TypeScript
 - Tailwind CSS
-- Lucide Icons
 
 ### Backend
 
@@ -79,20 +90,11 @@ safetyops-workspace/
 ### Banco de Dados
 
 - SQLite (dev)
-- PostgreSQL (produção - planejado)
+- PostgreSQL (planejado)
 
 ---
 
 ## ⚙️ Setup Local
-
-### Pré-requisitos
-
-- Node.js 18+
-- NPM ou Yarn
-
----
-
-### Instalação
 
 ```bash
 git clone https://github.com/seu-usuario/safetyops-workspace.git
@@ -100,25 +102,21 @@ cd safetyops-workspace
 npm run install:all
 ```
 
----
+### Variáveis de ambiente
 
-### Variáveis de Ambiente
-
-#### Backend
+**Backend**
 
 ```env
 DATABASE_URL="file:./dev.db"
 ```
 
-#### Frontend
+**Frontend**
 
 ```env
 VITE_GEMINI_API_KEY="sua_chave_aqui"
 ```
 
----
-
-### Banco de Dados
+### Banco de dados
 
 ```bash
 cd backend
@@ -126,9 +124,7 @@ npx prisma migrate dev --name init
 cd ..
 ```
 
----
-
-### Rodando o Projeto
+### Executar
 
 ```bash
 npm run dev
@@ -136,39 +132,49 @@ npm run dev
 
 ---
 
-## 🌐 Endpoints
+## 🌐 Acesso
 
 - Frontend → http://localhost:5173
-- API → http://localhost:3000
 - Swagger → http://localhost:3000/api/docs
 
 ---
 
-## 🧠 Diferenciais do Projeto
+## 🧠 Diferenciais
 
-💡 Centralização de múltiplos processos operacionais
-🤖 Uso de IA (OCR com Gemini)
-📊 Foco em produtividade real de campo
-🧱 Arquitetura escalável (NestJS + Prisma)
-📁 Exportação e integração com ferramentas externas
+- Centralização de operações
+- Uso de IA (OCR)
+- Arquitetura escalável
+- Exportação de dados
 
 ---
 
-## 🔒 Privacidade
+## 🔒 Privacidade e Uso de Dados (LGPD / GDPR)
 
-Projeto voltado para fins educacionais e portfólio.
+Este projeto foi desenvolvido exclusivamente para fins de **portfólio e demonstração técnica**.
 
-Todos os dados utilizados são fictícios, respeitando LGPD/GDPR.
+⚠️ **Todos os dados apresentados são totalmente fictícios**, incluindo, mas não se limitando a:
+
+- Nomes de colaboradores
+- Empresas
+- Matrículas
+- Registros operacionais
+- Documentos e informações de segurança
+
+Nenhuma informação real de pessoas ou organizações é utilizada neste sistema.
+
+O objetivo é apenas simular cenários reais de uso, respeitando integralmente os princípios da **Lei Geral de Proteção de Dados (LGPD)** e do **Regulamento Geral de Proteção de Dados (GDPR)**.
+
+Caso este projeto venha a ser utilizado em ambiente produtivo, será necessária a devida adequação às políticas de privacidade e segurança aplicáveis.
 
 ---
 
 ## 📝 Licença
 
-Este projeto está sob a licença MIT.
+MIT
 
 ---
 
 ## 👨‍💻 Autor
 
-Desenvolvido por **Mauro**
+Desenvolvido por **Mauro Daisuke**
 ☕ + código + problemas reais = soluções eficientes
