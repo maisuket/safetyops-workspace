@@ -1,105 +1,174 @@
-🛡️ SafetyOps Workspace
+# 🛡️ SafetyOps Workspace
 
-Um ERP modular e completo para gestão de equipas técnicas, controlo de segurança do trabalho (SST), banco de horas e logística de frota. Desenvolvido com foco na experiência do utilizador (UX) e eficiência operacional.
+![Status](https://img.shields.io/badge/status-em%20desenvolvimento-yellow)
+![License](https://img.shields.io/badge/license-MIT-blue)
+![Node](https://img.shields.io/badge/node-%3E%3D18-green)
+![Frontend](https://img.shields.io/badge/frontend-React%20%2B%20Vite-blue)
+![Backend](https://img.shields.io/badge/backend-NestJS-red)
+![Database](https://img.shields.io/badge/database-SQLite-lightgrey)
 
-📌 Sobre o Projeto
+Um **ERP modular e escalável** para gestão de equipas técnicas, Segurança do Trabalho (SST), banco de horas e logística de frota.
 
-O SafetyOps nasceu da necessidade de centralizar várias ferramentas de gestão do dia-a-dia de operações de campo (Field Ops) numa única plataforma. Ele elimina as planilhas de Excel descentralizadas, o papel e processos manuais.
+> 🚀 Focado em produtividade, automação e centralização de operações de campo (Field Ops)
 
-🧩 Módulos Principais
+---
 
-👥 Gestão de Equipa (RH): Cadastro, edição, e ativação/inativação de colaboradores com matrículas exclusivas.
+## 📸 Demonstração
 
-⚖️ Controlo de Folgas e Banco de Horas: Lançamento de créditos (domingos/feriados trabalhados) e débitos (folgas gozadas), com relatórios cruzados e extração de recibos em PDF.
+> 💡 **Dica:** Substitua as imagens abaixo por prints reais do seu sistema
 
-🦺 Safety / SST: Controlo rigoroso de documentos de Segurança do Trabalho (ASOs, NRs). Conta com semáforos de vencimento, importação em lote via CSV e Inteligência Artificial (OCR via Gemini) para extração automática de dados dos PDFs enviados.
+### Dashboard
 
-🚗 Gestão de Saídas: Criação de requisições e autorizações de saídas de veículos da empresa ou uso de aplicações de transporte (ex: Uber), com relatórios para a contabilidade.
+![Dashboard](./docs/images/dashboard.png)
 
-🚀 Tecnologias Utilizadas
+### Gestão de Equipa
 
-Este projeto foi construído utilizando uma arquitetura Monorepo simples, separando responsabilidades:
+![Equipe](./docs/images/equipe.png)
 
-Frontend:
+### Módulo de Segurança (SST)
 
-React (via Vite)
+![SST](./docs/images/sst.png)
 
-TypeScript
+### Banco de Horas
 
-Tailwind CSS (Estilização UI/UX Premium)
+![Banco de Horas](./docs/images/banco-horas.png)
 
-Lucide React (Ícones)
+---
 
-Integrações: jsPDF (Exportação de documentos), ExcelJS e XLSX (Geração e Leitura de planilhas).
+## ✨ Funcionalidades
 
-Backend:
+✔️ Gestão completa de colaboradores
+✔️ Controle de banco de horas
+✔️ Monitoramento de documentos SST (ASO, NR)
+✔️ Alertas de vencimento (semáforo)
+✔️ OCR com IA para leitura de documentos
+✔️ Gestão de frota e deslocamentos
+✔️ Exportação de relatórios (PDF/Excel)
 
-Node.js & NestJS (Framework escalável)
+---
 
-Prisma ORM (Modelagem de Banco de Dados)
+## 🧩 Arquitetura
 
-Banco de Dados: SQLite (Pronto para migrar para PostgreSQL)
+O projeto segue uma estrutura **monorepo**, separando frontend e backend:
 
-Swagger (Documentação Automática da API REST)
+```
+safetyops-workspace/
+├── backend/
+├── frontend/
+├── docs/
+└── README.md
+```
 
-⚙️ Como Executar Localmente
+---
 
-Pré-requisitos
+## 🚀 Tecnologias
 
-Node.js (v18+)
+### Frontend
 
-NPM ou Yarn
+- React + Vite
+- TypeScript
+- Tailwind CSS
+- Lucide Icons
 
-Passo a Passo
+### Backend
 
-Clone o repositório:
+- Node.js
+- NestJS
+- Prisma ORM
 
-git clone [https://github.com/seu-usuario/safetyops-workspace.git](https://github.com/seu-usuario/safetyops-workspace.git)
+### Banco de Dados
+
+- SQLite (dev)
+- PostgreSQL (produção - planejado)
+
+---
+
+## ⚙️ Setup Local
+
+### Pré-requisitos
+
+- Node.js 18+
+- NPM ou Yarn
+
+---
+
+### Instalação
+
+```bash
+git clone https://github.com/seu-usuario/safetyops-workspace.git
 cd safetyops-workspace
-
-
-Instale todas as dependências (Front e Back) com um único comando:
-
 npm run install:all
+```
 
+---
 
-Configure as Variáveis de Ambiente:
+### Variáveis de Ambiente
 
-Na pasta backend/, crie um ficheiro .env:
+#### Backend
 
+```env
 DATABASE_URL="file:./dev.db"
+```
 
+#### Frontend
 
-Na pasta frontend/, crie um ficheiro .env:
+```env
+VITE_GEMINI_API_KEY="sua_chave_aqui"
+```
 
-VITE_GEMINI_API_KEY="sua_chave_api_do_google_gemini_aqui"
+---
 
+### Banco de Dados
 
-Prepare a Base de Dados (Backend):
-
+```bash
 cd backend
 npx prisma migrate dev --name init
 cd ..
+```
 
+---
 
-Inicie o Servidor de Desenvolvimento:
-Execute o comando abaixo na raiz do projeto. Ele utilizará o concurrently para iniciar tanto o NestJS quanto o React no mesmo terminal!
+### Rodando o Projeto
 
+```bash
 npm run dev
+```
 
+---
 
-Aceda à Aplicação:
+## 🌐 Endpoints
 
-Frontend: http://localhost:5173
+- Frontend → http://localhost:5173
+- API → http://localhost:3000
+- Swagger → http://localhost:3000/api/docs
 
-Swagger (Documentação da API): http://localhost:3000/api/docs
+---
 
-🔒 Aviso de Privacidade (LGPD / GDPR)
+## 🧠 Diferenciais do Projeto
 
-Este é um projeto de código aberto disponibilizado para fins de portefólio e demonstração técnica. Todos os dados (nomes de colaboradores, empresas, matrículas e registos) contidos nos seeds ou mocks de desenvolvimento são inteiramente fictícios.
+💡 Centralização de múltiplos processos operacionais
+🤖 Uso de IA (OCR com Gemini)
+📊 Foco em produtividade real de campo
+🧱 Arquitetura escalável (NestJS + Prisma)
+📁 Exportação e integração com ferramentas externas
 
-📝 Licença
+---
 
-Este projeto está sob a licença MIT. Veja o arquivo LICENSE para mais detalhes.
+## 🔒 Privacidade
 
-Desenvolvido por Mauro,☕ e muito código.
+Projeto voltado para fins educacionais e portfólio.
+
+Todos os dados utilizados são fictícios, respeitando LGPD/GDPR.
+
+---
+
+## 📝 Licença
+
+Este projeto está sob a licença MIT.
+
+---
+
+## 👨‍💻 Autor
+
+Desenvolvido por **Mauro**
+☕ + código + problemas reais = soluções eficientes
