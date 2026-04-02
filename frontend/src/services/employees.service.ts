@@ -42,8 +42,8 @@ export const EmployeesService = {
    * Atualiza dados de um colaborador.
    * Rota NestJS: PUT /api/employees/:id
    */
-  async update(data: Data): Promise<Employee> {
-    return api.put<Employee>("/employees", data);
+  async update(id: string, data: Data): Promise<Employee> {
+    return api.put<Employee>(`/employees/${id}`, data);
   },
 
   /**
