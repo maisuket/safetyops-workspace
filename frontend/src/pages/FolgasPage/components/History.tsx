@@ -1,5 +1,13 @@
 import React, { useState, useMemo } from "react";
-import { Clock, Trash2, TrendingUp, Search, Filter } from "lucide-react";
+import {
+  Clock,
+  Trash2,
+  TrendingUp,
+  Search,
+  Filter,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { Employee, FolgaRecord } from "../FolgasPage";
 
 // --- History Component ---
@@ -8,6 +16,9 @@ interface HistoryComponentProps {
   employees: Employee[];
   isLoading: boolean;
   deleteRecord: (id: string) => void;
+  currentPage: number;
+  totalPages: number;
+  setCurrentPage: (page: number) => void;
 }
 
 export const HistoryComponent: React.FC<HistoryComponentProps> = ({
@@ -15,6 +26,9 @@ export const HistoryComponent: React.FC<HistoryComponentProps> = ({
   employees,
   isLoading,
   deleteRecord,
+  currentPage,
+  totalPages,
+  setCurrentPage,
 }) => {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [filterType, setFilterType] = useState<"all" | "trabalho" | "folga">(
@@ -23,7 +37,7 @@ export const HistoryComponent: React.FC<HistoryComponentProps> = ({
 
   // Filtro inteligente e memoizado para performance
   const filteredRecords = useMemo(() => {
-    return [...records].reverse().filter((record) => {
+    return records.filter((record) => {
       const emp = employees.find((e) => e.id === record.employeeId);
 
       // Busca por nome do colaborador, descrição ou referência
@@ -147,6 +161,31 @@ export const HistoryComponent: React.FC<HistoryComponentProps> = ({
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Controles de Paginação */}
+      <div className="p-4 border-t border-slate-100 flex justify-between items-center text-sm">
+        <span className="font-medium text-slate-500">
+          Página {currentPage} de {totalPages}
+        </span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setCurrentPage(currentPage - 1)}
+            disabled={currentPage === 1 || isLoading}
+            className="p-2 flex items-center gap-1 rounded-lg hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <ChevronLeft size={16} />
+            Anterior
+          </button>
+          <button
+            onClick={() => setCurrentPage(currentPage + 1)}
+            disabled={currentPage === totalPages || isLoading}
+            className="p-2 flex items-center gap-1 rounded-lg hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Próximo
+            <ChevronRight size={16} />
+          </button>
+        </div>
       </div>
     </div>
   );

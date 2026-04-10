@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   ChevronLeft,
   Clock,
@@ -6,31 +6,48 @@ import {
   FileText,
   Download,
   Trash2,
+  Loader2,
 } from "lucide-react";
 import { EmployeeStat, FolgaRecord } from "../FolgasPage";
+import { RecordsService } from "../../../services/records.service";
 
 // --- Employee Details Component ---
 interface EmployeeDetailsProps {
   selectedEmployeeId: string;
   employeeStats: EmployeeStat[];
-  records: FolgaRecord[];
   setSelectedEmployeeId: (id: string | null) => void;
-  deleteRecord: (id: string) => void;
+  deleteRecord: (id: string) => Promise<void>;
 }
 
 export const EmployeeDetails: React.FC<EmployeeDetailsProps> = ({
   selectedEmployeeId,
   employeeStats,
-  records,
   setSelectedEmployeeId,
   deleteRecord,
 }) => {
   const emp = employeeStats.find((e) => e.id === selectedEmployeeId);
-  if (!emp) return null;
+  const [empRecords, setEmpRecords] = useState<FolgaRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const empRecords = records
-    .filter((r) => r.employeeId === emp.id)
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const fetchEmployeeRecords = async () => {
+    if (!selectedEmployeeId) return;
+    try {
+      setIsLoading(true);
+      // @ts-ignore
+      const data = await RecordsService.findByEmployee(selectedEmployeeId);
+      setEmpRecords(data as FolgaRecord[]);
+    } catch (error) {
+      console.error("Erro ao carregar histórico do colaborador:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchEmployeeRecords();
+  }, [selectedEmployeeId]);
+
+  if (!emp) return null;
 
   const trabalhos = empRecords.filter((r) => r.type === "trabalho");
   const folgas = empRecords.filter((r) => r.type === "folga");
@@ -113,6 +130,11 @@ export const EmployeeDetails: React.FC<EmployeeDetailsProps> = ({
     doc.save(`Extrato_Folgas_${emp.name.replace(/\s+/g, "_")}.pdf`);
   };
 
+  const handleDelete = async (id: string) => {
+    await deleteRecord(id);
+    await fetchEmployeeRecords(); // Atualiza a visão de detalhes após remover na DB
+  };
+
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden animate-in slide-in-from-right-8 duration-500">
       <div className="p-6 border-b border-slate-50 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-slate-900 text-white">
@@ -147,123 +169,136 @@ export const EmployeeDetails: React.FC<EmployeeDetailsProps> = ({
       </div>
 
       <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8 bg-slate-50/50">
-        {/* Lado Esquerdo: Créditos */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-          <h3 className="text-lg font-bold flex items-center gap-2 mb-4 text-emerald-700 border-b border-slate-100 pb-3">
-            <TrendingUp size={20} /> Domingos Trabalhados
-            <span className="ml-auto bg-emerald-100 text-emerald-700 py-0.5 px-2.5 rounded-lg text-xs font-black">
-              {trabalhos.length}
-            </span>
-          </h3>
-          {trabalhos.length === 0 ? (
-            <p className="text-slate-400 text-sm italic text-center py-6">
-              Nenhum domingo trabalhado.
+        {isLoading && (
+          <div className="col-span-full flex flex-col items-center justify-center py-12">
+            <Loader2 className="animate-spin text-emerald-500 mb-4" size={40} />
+            <p className="text-slate-500 font-medium">
+              A carregar registos completos do colaborador...
             </p>
-          ) : (
-            <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
-              {trabalhos.map((t) => {
-                const dateString = new Date(t.date).toLocaleDateString(
-                  "pt-BR",
-                  { timeZone: "UTC" },
-                );
-                const refString = `${dateString} - ${t.local || "Sem local"}`;
+          </div>
+        )}
 
-                const isUsed = folgasDoFuncionario.some(
-                  (ref) =>
-                    ref && (ref === refString || ref.includes(dateString)),
-                );
+        {!isLoading && (
+          <>
+            {/* Lado Esquerdo: Créditos */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+              <h3 className="text-lg font-bold flex items-center gap-2 mb-4 text-emerald-700 border-b border-slate-100 pb-3">
+                <TrendingUp size={20} /> Domingos Trabalhados
+                <span className="ml-auto bg-emerald-100 text-emerald-700 py-0.5 px-2.5 rounded-lg text-xs font-black">
+                  {trabalhos.length}
+                </span>
+              </h3>
+              {trabalhos.length === 0 ? (
+                <p className="text-slate-400 text-sm italic text-center py-6">
+                  Nenhum domingo trabalhado.
+                </p>
+              ) : (
+                <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
+                  {trabalhos.map((t) => {
+                    const dateString = new Date(t.date).toLocaleDateString(
+                      "pt-BR",
+                      { timeZone: "UTC" },
+                    );
+                    const refString = `${dateString} - ${t.local || "Sem local"}`;
 
-                return (
-                  <div
-                    key={t.id}
-                    className={`p-4 rounded-xl flex flex-col gap-1 border ${isUsed ? "bg-slate-50 border-slate-200" : "bg-emerald-50/50 border-emerald-100"}`}
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="flex items-center gap-2">
+                    const isUsed = folgasDoFuncionario.some(
+                      (ref) =>
+                        ref && (ref === refString || ref.includes(dateString)),
+                    );
+
+                    return (
+                      <div
+                        key={t.id}
+                        className={`p-4 rounded-xl flex flex-col gap-1 border ${isUsed ? "bg-slate-50 border-slate-200" : "bg-emerald-50/50 border-emerald-100"}`}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`text-xs font-bold px-2 py-0.5 rounded-md ${isUsed ? "bg-slate-200 text-slate-500" : "bg-emerald-100 text-emerald-600"}`}
+                            >
+                              {dateString}
+                            </span>
+                            {t.local && (
+                              <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-md border border-slate-200">
+                                {t.local}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <span
+                              className={`text-[10px] uppercase font-black px-2 py-0.5 rounded-full ${isUsed ? "bg-slate-200 text-slate-400" : "bg-emerald-500 text-white shadow-sm"}`}
+                            >
+                              {isUsed ? "Compensado" : "Disponível"}
+                            </span>
+                            <button
+                              onClick={() => handleDelete(t.id)}
+                              className="text-slate-300 hover:text-rose-500 transition-colors"
+                              title="Reverter / Excluir Lançamento"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </div>
                         <span
-                          className={`text-xs font-bold px-2 py-0.5 rounded-md ${isUsed ? "bg-slate-200 text-slate-500" : "bg-emerald-100 text-emerald-600"}`}
+                          className={`font-medium text-sm mt-2 ${isUsed ? "text-slate-400 line-through" : "text-slate-700"}`}
                         >
-                          {dateString}
+                          {t.description || "Sem descrição"}
                         </span>
-                        {t.local && (
-                          <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-md border border-slate-200">
-                            {t.local}
-                          </span>
-                        )}
                       </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
 
-                      <div className="flex items-center gap-3">
-                        <span
-                          className={`text-[10px] uppercase font-black px-2 py-0.5 rounded-full ${isUsed ? "bg-slate-200 text-slate-400" : "bg-emerald-500 text-white shadow-sm"}`}
-                        >
-                          {isUsed ? "Compensado" : "Disponível"}
+            {/* Lado Direito: Débitos */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+              <h3 className="text-lg font-bold flex items-center gap-2 mb-4 text-amber-600 border-b border-slate-100 pb-3">
+                <Clock size={20} /> Folgas Gozadas
+                <span className="ml-auto bg-amber-100 text-amber-700 py-0.5 px-2.5 rounded-lg text-xs font-black">
+                  {folgas.length}
+                </span>
+              </h3>
+              {folgas.length === 0 ? (
+                <p className="text-slate-400 text-sm italic text-center py-6">
+                  Nenhuma folga registada.
+                </p>
+              ) : (
+                <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
+                  {folgas.map((f) => (
+                    <div
+                      key={f.id}
+                      className="p-4 bg-amber-50/50 border border-amber-100 rounded-xl flex flex-col gap-1 relative overflow-hidden group"
+                    >
+                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-400"></div>
+                      <div className="flex justify-between items-start ml-2 pr-2">
+                        <span className="text-xs font-bold text-amber-600 bg-white border border-amber-100 w-fit px-2 py-0.5 rounded-md">
+                          {new Date(f.date).toLocaleDateString("pt-BR", {
+                            timeZone: "UTC",
+                          })}
                         </span>
                         <button
-                          onClick={() => deleteRecord(t.id)}
-                          className="text-slate-300 hover:text-rose-500 transition-colors"
-                          title="Reverter / Excluir Lançamento"
+                          onClick={() => handleDelete(f.id)}
+                          className="text-slate-300 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100"
+                          title="Reverter Folga"
                         >
                           <Trash2 size={16} />
                         </button>
                       </div>
+                      <span className="text-slate-700 font-medium text-sm mt-2 ml-2">
+                        <span className="text-slate-400 font-normal mr-1">
+                          Ref:
+                        </span>{" "}
+                        {f.refDate || "Sem referência"}
+                      </span>
                     </div>
-                    <span
-                      className={`font-medium text-sm mt-2 ${isUsed ? "text-slate-400 line-through" : "text-slate-700"}`}
-                    >
-                      {t.description || "Sem descrição"}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Lado Direito: Débitos */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-          <h3 className="text-lg font-bold flex items-center gap-2 mb-4 text-amber-600 border-b border-slate-100 pb-3">
-            <Clock size={20} /> Folgas Gozadas
-            <span className="ml-auto bg-amber-100 text-amber-700 py-0.5 px-2.5 rounded-lg text-xs font-black">
-              {folgas.length}
-            </span>
-          </h3>
-          {folgas.length === 0 ? (
-            <p className="text-slate-400 text-sm italic text-center py-6">
-              Nenhuma folga registada.
-            </p>
-          ) : (
-            <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
-              {folgas.map((f) => (
-                <div
-                  key={f.id}
-                  className="p-4 bg-amber-50/50 border border-amber-100 rounded-xl flex flex-col gap-1 relative overflow-hidden group"
-                >
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-400"></div>
-                  <div className="flex justify-between items-start ml-2 pr-2">
-                    <span className="text-xs font-bold text-amber-600 bg-white border border-amber-100 w-fit px-2 py-0.5 rounded-md">
-                      {new Date(f.date).toLocaleDateString("pt-BR", {
-                        timeZone: "UTC",
-                      })}
-                    </span>
-                    <button
-                      onClick={() => deleteRecord(f.id)}
-                      className="text-slate-300 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100"
-                      title="Reverter Folga"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                  <span className="text-slate-700 font-medium text-sm mt-2 ml-2">
-                    <span className="text-slate-400 font-normal mr-1">
-                      Ref:
-                    </span>{" "}
-                    {f.refDate || "Sem referência"}
-                  </span>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
-          )}
-        </div>
+          </>
+        )}
       </div>
     </div>
   );

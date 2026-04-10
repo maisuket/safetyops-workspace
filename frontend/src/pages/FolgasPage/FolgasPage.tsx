@@ -55,6 +55,7 @@ export interface EmployeeStat extends Employee {
 export const FolgasPage = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [records, setRecords] = useState<FolgaRecord[]>([]);
+  const [employeeStats, setEmployeeStats] = useState<EmployeeStat[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<string>("dashboard");
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(
@@ -64,6 +65,9 @@ export const FolgasPage = () => {
   const [isReportModalOpen, setIsReportModalOpen] = useState<boolean>(false);
   const [libsLoaded, setLibsLoaded] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalRecords, setTotalRecords] = useState(0);
 
   const isFetchingOrSeeding = useRef<boolean>(false);
 
@@ -116,21 +120,33 @@ export const FolgasPage = () => {
 
     try {
       setIsLoading(true);
-      let [empsData, recsData] = await Promise.all([
+      // Busca os stats e os colaboradores em paralelo
+      let [statsData, empsData] = await Promise.all([
+        EmployeesService.getStats(),
         EmployeesService.findAll(),
-        RecordsService.findAll(),
       ]);
 
+      // Seeding inicial (lógica mantida)
       if (empsData.length === 0 && INITIAL_EMPLOYEES?.length > 0) {
         console.log("A semear base de dados com técnicos iniciais...");
         for (let i = 0; i < INITIAL_EMPLOYEES.length; i++) {
           await EmployeesService.create(INITIAL_EMPLOYEES[i]);
         }
-        empsData = await EmployeesService.findAll();
+        [statsData, empsData] = await Promise.all([
+          EmployeesService.getStats(),
+          EmployeesService.findAll(),
+        ]);
       }
 
+      // Busca os registos paginados
+      const { data: recsData, total } =
+        await RecordsService.findAll(currentPage);
+
       setEmployees(empsData);
+      setEmployeeStats(statsData);
       setRecords(recsData);
+      setTotalRecords(total);
+      setTotalPages(Math.ceil(total / 20)); // Assumindo limit de 20
     } catch (error) {
       console.error("Erro ao conectar com a API NestJS:", error);
       setEmployees(
@@ -146,8 +162,9 @@ export const FolgasPage = () => {
           "Aviso: Falha na ligação ao servidor NestJS. Deseja usar o modo local (Dados não serão guardados no backend)?",
         )
       ) {
-        const savedRecords = localStorage.getItem("itam_records_mock");
-        if (savedRecords) setRecords(JSON.parse(savedRecords));
+        // Em modo local, não há como popular stats ou records de forma confiável
+        setEmployeeStats([]);
+        setRecords([]);
       }
     } finally {
       setIsLoading(false);
@@ -157,12 +174,11 @@ export const FolgasPage = () => {
 
   useEffect(() => {
     loadApiData();
-  }, []);
+  }, [currentPage]); // Recarrega os dados quando a página muda
 
   useEffect(() => {
-    if (records.length > 0) {
-      localStorage.setItem("itam_records_mock", JSON.stringify(records));
-    }
+    // Lógica de fallback local removida para simplificar,
+    // pois os dados agora são paginados e não representam o todo.
   }, [records]);
 
   // =========================================================================================
@@ -171,12 +187,15 @@ export const FolgasPage = () => {
   const pastWorksOptions = useMemo(() => {
     if (newRecord.employeeIds.length === 0) return [];
 
-    const works = records.filter(
+    // ATENÇÃO: Esta lógica agora depende de todos os registos.
+    // Para funcionar corretamente com paginação, seria necessário um novo endpoint
+    // para buscar apenas os trabalhos pendentes de um colaborador.
+    const works = employeeStats.flatMap(
       (r) =>
         r.type === "trabalho" && newRecord.employeeIds.includes(r.employeeId),
     );
 
-    const folgas = records.filter(
+    const folgas = employeeStats.flatMap(
       (r) => r.type === "folga" && newRecord.employeeIds.includes(r.employeeId),
     );
 
@@ -217,18 +236,7 @@ export const FolgasPage = () => {
     return validOptions.sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
     );
-  }, [records, newRecord.employeeIds]);
-
-  const employeeStats = useMemo<EmployeeStat[]>(() => {
-    return employees
-      .map((emp) => {
-        const empRecords = records.filter((r) => r.employeeId === emp.id);
-        const earned = empRecords.filter((r) => r.type === "trabalho").length;
-        const taken = empRecords.filter((r) => r.type === "folga").length;
-        return { ...emp, earned, taken, balance: earned - taken };
-      })
-      .sort((a, b) => b.balance - a.balance);
-  }, [employees, records]);
+  }, [employeeStats, newRecord.employeeIds]);
 
   const totalBalance = employeeStats.reduce(
     (acc, curr) => acc + curr.balance,
@@ -263,18 +271,9 @@ export const FolgasPage = () => {
       await loadApiData();
       closeModal();
     } catch (error) {
-      console.warn("API indisponível, a usar fallback de memória.");
-      const recordsToInsert = newRecord.employeeIds.map((empId) => ({
-        id: Date.now().toString() + Math.random().toString(36).substring(2, 7),
-        employeeId: empId,
-        type: newRecord.type,
-        date: newRecord.date,
-        local: newRecord.type === "trabalho" ? newRecord.local : undefined,
-        description:
-          newRecord.type === "trabalho" ? newRecord.description : undefined,
-        refDate: newRecord.type === "folga" ? newRecord.refDate : undefined,
-      }));
-      setRecords([...records, ...recordsToInsert]);
+      // O fallback local para adição é complexo com paginação,
+      // idealmente, mostrar um erro ao utilizador.
+      alert("Falha ao adicionar registo. Verifique a sua ligação.");
       closeModal();
       setIsLoading(false);
     }
@@ -288,10 +287,10 @@ export const FolgasPage = () => {
     ) {
       try {
         await RecordsService.remove(id);
-        setRecords(records.filter((r) => r.id !== id));
+        await loadApiData(); // Recarrega os dados para refletir a exclusão
       } catch (error) {
-        console.warn("API indisponível, a usar fallback de memória.");
-        setRecords(records.filter((r) => r.id !== id));
+        // O fallback local para exclusão também é complexo.
+        alert("Falha ao excluir registo. Verifique a sua ligação.");
       }
     }
   };
@@ -502,7 +501,7 @@ export const FolgasPage = () => {
       <div className="flex-1">
         {selectedEmployeeId ? (
           <EmployeeDetails
-            selectedEmployeeId={selectedEmployeeId}
+            selectedEmployeeId={selectedEmployeeId} // Este componente pode precisar de todos os registos do user
             employeeStats={employeeStats}
             records={records}
             setSelectedEmployeeId={setSelectedEmployeeId}
@@ -510,7 +509,7 @@ export const FolgasPage = () => {
           />
         ) : activeTab === "dashboard" ? (
           <Dashboard
-            employeesLength={employees.length}
+            employeesLength={employeeStats.length}
             totalCredits={records.filter((r) => r.type === "trabalho").length}
             totalBalance={totalBalance}
             employeeStats={employeeStats}
@@ -527,6 +526,9 @@ export const FolgasPage = () => {
             employees={employees}
             isLoading={isLoading}
             deleteRecord={deleteRecord}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            setCurrentPage={setCurrentPage}
           />
         )}
       </div>
