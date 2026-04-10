@@ -6,13 +6,14 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
+import { EmployeeStat } from "../FolgasPage";
 
 // --- Dashboard Component ---
 interface DashboardProps {
   employeesLength: number;
   totalCredits: number;
   totalBalance: number;
-  employeeStats: any[];
+  employeeStats: EmployeeStat[];
   isLoading: boolean;
   libsLoaded: boolean;
   setSelectedEmployeeId: (id: string) => void;

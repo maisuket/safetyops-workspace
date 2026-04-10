@@ -28,9 +28,33 @@ import { ReportModal } from "./modal/ReportsModal";
  * 📂 src/pages/Folgas/FolgasPage.tsx
  * ============================================================================
  */
+
+export interface Employee {
+  id: string;
+  name: string;
+  enrollment?: string;
+  active?: boolean;
+}
+
+export interface FolgaRecord {
+  id: string;
+  employeeId: string;
+  type: "trabalho" | "folga";
+  date: string;
+  local?: string;
+  description?: string;
+  refDate?: string;
+}
+
+export interface EmployeeStat extends Employee {
+  earned: number;
+  taken: number;
+  balance: number;
+}
+
 export const FolgasPage = () => {
-  const [employees, setEmployees] = useState<any[]>([]);
-  const [records, setRecords] = useState<any[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [records, setRecords] = useState<FolgaRecord[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<string>("dashboard");
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(
@@ -195,7 +219,7 @@ export const FolgasPage = () => {
     );
   }, [records, newRecord.employeeIds]);
 
-  const employeeStats = useMemo(() => {
+  const employeeStats = useMemo<EmployeeStat[]>(() => {
     return employees
       .map((emp) => {
         const empRecords = records.filter((r) => r.employeeId === emp.id);

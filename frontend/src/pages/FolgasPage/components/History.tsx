@@ -1,10 +1,11 @@
 import React, { useState, useMemo } from "react";
 import { Clock, Trash2, TrendingUp, Search, Filter } from "lucide-react";
+import { Employee, FolgaRecord } from "../FolgasPage";
 
 // --- History Component ---
 interface HistoryComponentProps {
-  records: any[];
-  employees: any[];
+  records: FolgaRecord[];
+  employees: Employee[];
   isLoading: boolean;
   deleteRecord: (id: string) => void;
 }

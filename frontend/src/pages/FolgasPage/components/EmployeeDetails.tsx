@@ -7,12 +7,13 @@ import {
   Download,
   Trash2,
 } from "lucide-react";
+import { EmployeeStat, FolgaRecord } from "../FolgasPage";
 
 // --- Employee Details Component ---
 interface EmployeeDetailsProps {
   selectedEmployeeId: string;
-  employeeStats: any[];
-  records: any[];
+  employeeStats: EmployeeStat[];
+  records: FolgaRecord[];
   setSelectedEmployeeId: (id: string | null) => void;
   deleteRecord: (id: string) => void;
 }
