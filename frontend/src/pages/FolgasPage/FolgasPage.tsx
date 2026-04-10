@@ -482,6 +482,7 @@ export const FolgasPage = () => {
             employeeStats={employeeStats}
             records={records}
             setSelectedEmployeeId={setSelectedEmployeeId}
+            deleteRecord={deleteRecord}
           />
         ) : activeTab === "dashboard" ? (
           <Dashboard

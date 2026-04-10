@@ -23,18 +23,36 @@ import {
 import { DocumentsService } from "../../services/documents.service";
 import { ImportSSTModal } from "./modal/ImportSstModal";
 
+interface Employee {
+  id: string;
+  name: string;
+  enrollment?: string;
+  role?: string;
+}
+
+interface SafetyDocument {
+  id: string;
+  employeeId: string;
+  docType: string;
+  issueDate?: string | null;
+  expiryDate: string;
+}
+
 export const SafetyDocsPage = () => {
-  const [employees, setEmployees] = useState<any[]>([]);
-  const [documents, setDocuments] = useState<any[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [documents, setDocuments] = useState<SafetyDocument[]>([]);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(
+    null,
+  );
   const [isLoading, setIsLoading] = useState(true);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
+  const [editingDocId, setEditingDocId] = useState<string | null>(null);
   const [toast, setToast] = useState<any>(null);
   const isFetching = useRef(false);
 
@@ -44,6 +62,10 @@ export const SafetyDocsPage = () => {
   useEffect(() => {
     const loadScript = (src: string) => {
       return new Promise((resolve) => {
+        // Evita injetar o mesmo script múltiplas vezes
+        if (document.querySelector(`script[src="${src}"]`)) {
+          return resolve(true);
+        }
         const script = document.createElement("script");
         script.src = src;
         script.onload = () => resolve(true);
@@ -128,6 +150,7 @@ export const SafetyDocsPage = () => {
       setDocuments([...documents, newDoc]);
       setIsModalOpen(false);
       setAnalysisResult(null);
+      setEditingDocId(null);
       showToast("Documento arquivado (Modo Local)!");
     } finally {
       setIsLoading(false);
@@ -148,6 +171,45 @@ export const SafetyDocsPage = () => {
       } finally {
         setIsLoading(false);
       }
+    }
+  };
+
+  const handleEditDocument = (doc: SafetyDocument) => {
+    setEditingDocId(doc.id);
+    setAnalysisResult({
+      employeeId: doc.employeeId,
+      docType: doc.docType,
+      issueDate: doc.issueDate
+        ? new Date(doc.issueDate).toISOString().split("T")[0]
+        : "",
+      expiryDate: doc.expiryDate
+        ? new Date(doc.expiryDate).toISOString().split("T")[0]
+        : "",
+    });
+    setIsModalOpen(true);
+  };
+
+  const updateDocument = async (id: string, docData: any) => {
+    try {
+      setIsLoading(true);
+      await DocumentsService.update(id, docData);
+      await loadData();
+      setIsModalOpen(false);
+      setAnalysisResult(null);
+      setEditingDocId(null);
+      showToast("Documento atualizado com sucesso!");
+    } catch (e) {
+      console.error(e);
+      // Fallback Local
+      setDocuments(
+        documents.map((d) => (d.id === id ? { ...d, ...docData } : d)),
+      );
+      setIsModalOpen(false);
+      setAnalysisResult(null);
+      setEditingDocId(null);
+      showToast("Documento atualizado (Modo Local)!");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -265,13 +327,16 @@ export const SafetyDocsPage = () => {
     }
   };
 
-  const filteredDocuments = documents.filter((doc) => {
-    const emp = employees.find((e) => e.id === doc.employeeId);
-    return (
-      (emp?.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      doc.docType.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  });
+  // Melhoria de Performance: Evita recalcular em cada render
+  const filteredDocuments = useMemo(() => {
+    return documents.filter((doc) => {
+      const emp = employees.find((e) => e.id === doc.employeeId);
+      return (
+        (emp?.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        doc.docType.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    });
+  }, [documents, employees, searchQuery]);
 
   const stats = useMemo(() => {
     const counts = { expired: 0, critical: 0, warning: 0, ok: 0 };
@@ -565,12 +630,22 @@ export const SafetyDocsPage = () => {
                     >
                       {doc.docType}
                     </div>
-                    <button
-                      onClick={() => removeDocument(doc.id)}
-                      className="text-slate-300 hover:text-rose-500"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleEditDocument(doc)}
+                        className="text-slate-300 hover:text-blue-500 transition-colors"
+                        title="Editar"
+                      >
+                        <Edit3 size={16} />
+                      </button>
+                      <button
+                        onClick={() => removeDocument(doc.id)}
+                        className="text-slate-300 hover:text-rose-500 transition-colors"
+                        title="Excluir"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   </div>
                   <div className="mb-4 ml-4">
                     <h4 className="font-black text-slate-800 text-lg truncate">
@@ -681,6 +756,13 @@ export const SafetyDocsPage = () => {
                       </div>
                       <div className="flex gap-2">
                         <button
+                          onClick={() => handleEditDocument(doc)}
+                          className="p-1.5 text-slate-300 hover:text-blue-500 bg-slate-50 rounded-lg transition-colors"
+                          title="Editar"
+                        >
+                          <Edit3 size={16} />
+                        </button>
+                        <button
                           onClick={() => removeDocument(doc.id)}
                           className="p-1.5 text-slate-300 hover:text-rose-500 bg-slate-50 rounded-lg transition-colors"
                           title="Excluir"
@@ -718,12 +800,14 @@ export const SafetyDocsPage = () => {
           <div className="bg-white rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl animate-in zoom-in-95">
             <div className="p-6 bg-slate-900 text-white flex justify-between items-center">
               <h3 className="font-bold text-lg flex items-center gap-2">
-                <Upload size={20} /> Arquivar Documento
+                {editingDocId ? <Edit3 size={20} /> : <Upload size={20} />}
+                {editingDocId ? "Editar Documento" : "Arquivar Documento"}
               </h3>
               <button
                 onClick={() => {
                   setIsModalOpen(false);
                   setAnalysisResult(null);
+                  setEditingDocId(null);
                 }}
               >
                 <X size={20} />
@@ -856,7 +940,11 @@ export const SafetyDocsPage = () => {
                   </div>
 
                   <button
-                    onClick={() => addDocument(analysisResult)}
+                    onClick={() =>
+                      editingDocId
+                        ? updateDocument(editingDocId, analysisResult)
+                        : addDocument(analysisResult)
+                    }
                     disabled={
                       !analysisResult.employeeId ||
                       !analysisResult.docType ||
@@ -864,7 +952,9 @@ export const SafetyDocsPage = () => {
                     }
                     className="w-full bg-emerald-600 text-white p-4 rounded-xl font-bold hover:bg-emerald-700 disabled:opacity-50 mt-4 shadow-lg"
                   >
-                    Confirmar Arquivamento
+                    {editingDocId
+                      ? "Guardar Alterações"
+                      : "Confirmar Arquivamento"}
                   </button>
                 </div>
               )}

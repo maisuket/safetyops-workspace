@@ -5,6 +5,7 @@ import {
   TrendingUp,
   FileText,
   Download,
+  Trash2,
 } from "lucide-react";
 
 // --- Employee Details Component ---
@@ -13,6 +14,7 @@ interface EmployeeDetailsProps {
   employeeStats: any[];
   records: any[];
   setSelectedEmployeeId: (id: string | null) => void;
+  deleteRecord: (id: string) => void;
 }
 
 export const EmployeeDetails: React.FC<EmployeeDetailsProps> = ({
@@ -20,6 +22,7 @@ export const EmployeeDetails: React.FC<EmployeeDetailsProps> = ({
   employeeStats,
   records,
   setSelectedEmployeeId,
+  deleteRecord,
 }) => {
   const emp = employeeStats.find((e) => e.id === selectedEmployeeId);
   if (!emp) return null;
@@ -188,11 +191,20 @@ export const EmployeeDetails: React.FC<EmployeeDetailsProps> = ({
                         )}
                       </div>
 
-                      <span
-                        className={`text-[10px] uppercase font-black px-2 py-0.5 rounded-full ${isUsed ? "bg-slate-200 text-slate-400" : "bg-emerald-500 text-white shadow-sm"}`}
-                      >
-                        {isUsed ? "Compensado" : "Disponível"}
-                      </span>
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={`text-[10px] uppercase font-black px-2 py-0.5 rounded-full ${isUsed ? "bg-slate-200 text-slate-400" : "bg-emerald-500 text-white shadow-sm"}`}
+                        >
+                          {isUsed ? "Compensado" : "Disponível"}
+                        </span>
+                        <button
+                          onClick={() => deleteRecord(t.id)}
+                          className="text-slate-300 hover:text-rose-500 transition-colors"
+                          title="Reverter / Excluir Lançamento"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </div>
                     <span
                       className={`font-medium text-sm mt-2 ${isUsed ? "text-slate-400 line-through" : "text-slate-700"}`}
@@ -226,11 +238,20 @@ export const EmployeeDetails: React.FC<EmployeeDetailsProps> = ({
                   className="p-4 bg-amber-50/50 border border-amber-100 rounded-xl flex flex-col gap-1 relative overflow-hidden group"
                 >
                   <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-400"></div>
-                  <span className="text-xs font-bold text-amber-600 bg-white border border-amber-100 w-fit px-2 py-0.5 rounded-md ml-2">
-                    {new Date(f.date).toLocaleDateString("pt-BR", {
-                      timeZone: "UTC",
-                    })}
-                  </span>
+                  <div className="flex justify-between items-start ml-2 pr-2">
+                    <span className="text-xs font-bold text-amber-600 bg-white border border-amber-100 w-fit px-2 py-0.5 rounded-md">
+                      {new Date(f.date).toLocaleDateString("pt-BR", {
+                        timeZone: "UTC",
+                      })}
+                    </span>
+                    <button
+                      onClick={() => deleteRecord(f.id)}
+                      className="text-slate-300 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100"
+                      title="Reverter Folga"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                   <span className="text-slate-700 font-medium text-sm mt-2 ml-2">
                     <span className="text-slate-400 font-normal mr-1">
                       Ref:
