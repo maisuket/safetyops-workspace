@@ -60,7 +60,11 @@ async function bootstrap(): Promise<void> {
    */
 
   // Habilita CORS para permitir a ligação do Frontend React
-  app.enableCors();
+  app.enableCors({
+    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    credentials: true,
+  });
 
   // Define o prefixo global /api (Ex: http://localhost:3000/api/records)
   app.setGlobalPrefix('api');
