@@ -501,9 +501,8 @@ export const FolgasPage = () => {
       <div className="flex-1">
         {selectedEmployeeId ? (
           <EmployeeDetails
-            selectedEmployeeId={selectedEmployeeId} // Este componente pode precisar de todos os registos do user
+            selectedEmployeeId={selectedEmployeeId}
             employeeStats={employeeStats}
-            records={records}
             setSelectedEmployeeId={setSelectedEmployeeId}
             deleteRecord={deleteRecord}
           />

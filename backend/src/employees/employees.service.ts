@@ -101,21 +101,6 @@ export class EmployeesService {
     updateEmployeeDto: UpdateEmployeeDto,
   ): Promise<Employee> {
     try {
-      // Se estiver a atualizar a matrícula, verificar se já existe noutro utilizador
-      if (updateEmployeeDto.enrollment) {
-        const existingMatricula = await this.prisma.employee.findFirst({
-          where: {
-            enrollment: updateEmployeeDto.enrollment,
-            id: { not: id },
-          },
-        });
-        if (existingMatricula) {
-          throw new ConflictException(
-            'Esta matrícula já está em uso por outro colaborador.',
-          );
-        }
-      }
-
       return await this.prisma.employee.update({
         where: { id },
         data: {
@@ -126,6 +111,14 @@ export class EmployeesService {
         },
       });
     } catch (error) {
+      // P2002 é o código do Prisma para "Violação de constraint única (Unique constraint failed)"
+      // Isso garante que não haverá condições de corrida.
+      if (error.code === 'P2002') {
+        throw new ConflictException(
+          'Esta matrícula já está em uso por outro colaborador.',
+        );
+      }
+
       this.logger.error(
         `Erro ao atualizar colaborador: ${error.message}`,
         error.stack,
@@ -144,6 +137,57 @@ export class EmployeesService {
     } catch (error) {
       throw new InternalServerErrorException(
         'Erro ao remover colaborador. Verifique se existem registos vinculados.',
+      );
+    }
+  }
+
+  /**
+   * Calcula e retorna as estatísticas de folgas para todos os colaboradores.
+   * Esta operação é mais eficiente no backend do que no frontend com grandes volumes de dados.
+   */
+  async getStats(): Promise<any[]> {
+    try {
+      const employees = await this.prisma.employee.findMany({
+        where: { active: true },
+        orderBy: { name: 'asc' },
+      });
+
+      const aggregations = await this.prisma.record.groupBy({
+        by: ['employeeId', 'type'],
+        _count: {
+          id: true,
+        },
+      });
+
+      const statsMap = new Map<string, { earned: number; taken: number }>();
+      aggregations.forEach((agg) => {
+        const stat = statsMap.get(agg.employeeId) || { earned: 0, taken: 0 };
+        if (agg.type === 'trabalho') {
+          stat.earned = agg._count.id;
+        } else {
+          stat.taken = agg._count.id;
+        }
+        statsMap.set(agg.employeeId, stat);
+      });
+
+      const employeeStats = employees.map((emp) => {
+        const empStats = statsMap.get(emp.id) || { earned: 0, taken: 0 };
+        return {
+          ...emp,
+          earned: empStats.earned,
+          taken: empStats.taken,
+          balance: empStats.earned - empStats.taken,
+        };
+      });
+
+      return employeeStats.sort((a, b) => b.balance - a.balance);
+    } catch (error) {
+      this.logger.error(
+        `Erro ao calcular stats: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        'Não foi possível gerar as estatísticas.',
       );
     }
   }

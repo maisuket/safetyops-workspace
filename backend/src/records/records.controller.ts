@@ -5,6 +5,8 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Param,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -41,6 +43,21 @@ export class RecordsController {
   @ApiResponse({ status: 400, description: 'Dados inválidos fornecidos.' })
   async create(@Body() createRecordDto: CreateRecordDto) {
     return this.recordsService.create(createRecordDto);
+  }
+
+  @Get('employee/:employeeId')
+  @ApiOperation({
+    summary: 'Obter todo o histórico de um colaborador específico',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de registos do colaborador.',
+  })
+  async findByEmployee(
+    @Param('employeeId', new ParseUUIDPipe({ version: '4' }))
+    employeeId: string,
+  ) {
+    return this.recordsService.findByEmployee(employeeId);
   }
 
   @Get()

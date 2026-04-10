@@ -22,13 +22,28 @@ export interface CreateBulkRecordDto {
   refDate?: string;
 }
 
+export interface PaginatedRecordsResponse {
+  data: Record[];
+  total: number;
+}
+
 export const RecordsService = {
   /**
    * Busca todo o histórico de lançamentos.
    * Rota NestJS: GET /api/records
    */
-  async findAll(): Promise<Record[]> {
-    return api.get<Record[]>("/records");
+  async findAll(page = 1, limit = 20): Promise<PaginatedRecordsResponse> {
+    return api.get<PaginatedRecordsResponse>(
+      `/records?page=${page}&limit=${limit}`,
+    );
+  },
+
+  /**
+   * Busca o histórico completo de um único colaborador.
+   * Rota NestJS: GET /api/records/employee/:employeeId
+   */
+  async findByEmployee(employeeId: string): Promise<Record[]> {
+    return api.get<Record[]>(`/records/employee/${employeeId}`);
   },
 
   /**

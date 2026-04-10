@@ -98,20 +98,51 @@ export class RecordsService {
   /**
    * Retorna todos os registos, incluindo os dados básicos do colaborador associado
    */
-  async findAll(): Promise<Record[]> {
-    return this.prisma.record.findMany({
-      include: {
-        employee: {
-          select: {
-            name: true,
-            active: true,
+  async findAll(
+    page = 1,
+    limit = 20,
+  ): Promise<{ data: Record[]; total: number }> {
+    const skip = (page - 1) * limit;
+
+    const [records, total] = await this.prisma.$transaction([
+      this.prisma.record.findMany({
+        skip,
+        take: limit,
+        include: {
+          employee: {
+            select: {
+              name: true,
+              active: true,
+            },
           },
         },
-      },
-      orderBy: {
-        date: 'desc', // Ordenar do mais recente para o mais antigo
-      },
-    });
+        orderBy: {
+          date: 'desc', // Ordenar do mais recente para o mais antigo
+        },
+      }),
+      this.prisma.record.count(),
+    ]);
+
+    return { data: records, total };
+  }
+
+  /**
+   * Retorna todos os registos de um colaborador específico (Histórico Completo)
+   */
+  async findByEmployee(employeeId: string): Promise<Record[]> {
+    try {
+      return await this.prisma.record.findMany({
+        where: { employeeId },
+        orderBy: { date: 'desc' },
+      });
+    } catch (error) {
+      this.logger.error(
+        `Erro ao buscar registos do colaborador ${employeeId}: ${error.message}`,
+      );
+      throw new InternalServerErrorException(
+        'Não foi possível carregar os registos do colaborador.',
+      );
+    }
   }
 
   /**
