@@ -9,6 +9,9 @@ import {
   HttpCode,
   HttpStatus,
   Delete,
+  Query,
+  DefaultValuePipe,
+  ParseIntPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -35,8 +38,17 @@ export class EmployeesController {
     status: 200,
     description: 'Lista de colaboradores retornada com sucesso.',
   })
-  async findAll(): Promise<Employee[]> {
-    return this.employeesService.findAll();
+  async findAll(
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+  ) {
+    return this.employeesService.findAll(page, limit);
+  }
+
+  @Get('stats')
+  @ApiOperation({ summary: 'Obter estatísticas de folgas dos colaboradores' })
+  async getStats() {
+    return this.employeesService.getStats();
   }
 
   @Post()

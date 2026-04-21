@@ -19,9 +19,29 @@ import {
   X,
   Download,
   FileText,
+  Calendar,
+  Briefcase,
+  FileX,
 } from "lucide-react";
 import { DocumentsService } from "../../services/documents.service";
 import { ImportSSTModal } from "./modal/ImportSstModal";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { toast } from "sonner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Employee {
   id: string;
@@ -53,7 +73,6 @@ export const SafetyDocsPage = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
   const [editingDocId, setEditingDocId] = useState<string | null>(null);
-  const [toast, setToast] = useState<any>(null);
   const isFetching = useRef(false);
 
   // Carregar dependências de exportação
@@ -90,20 +109,16 @@ export const SafetyDocsPage = () => {
     initLibs();
   }, []);
 
-  const showToast = (message: string, type = "success") => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
-  };
-
   const loadData = async () => {
     if (isFetching.current) return;
     isFetching.current = true;
     try {
       setIsLoading(true);
-      const [empData, docData] = await Promise.all([
-        EmployeesService.findAll().catch(() => []),
+      const [empResponse, docData] = await Promise.all([
+        EmployeesService.findAll(1, 1000).catch(() => ({ data: [], total: 0 })),
         DocumentsService.findAll().catch(() => []),
       ]);
+      const empData = empResponse.data || [];
       setEmployees(
         empData.length > 0
           ? empData
@@ -142,7 +157,7 @@ export const SafetyDocsPage = () => {
       await loadData();
       setIsModalOpen(false);
       setAnalysisResult(null);
-      showToast("Documento arquivado com sucesso!");
+      toast.success("Documento arquivado com sucesso!");
     } catch (e) {
       console.error(e);
       // Fallback Local
@@ -151,7 +166,7 @@ export const SafetyDocsPage = () => {
       setIsModalOpen(false);
       setAnalysisResult(null);
       setEditingDocId(null);
-      showToast("Documento arquivado (Modo Local)!");
+      toast.success("Documento arquivado (Modo Local)!");
     } finally {
       setIsLoading(false);
     }
@@ -163,11 +178,11 @@ export const SafetyDocsPage = () => {
         setIsLoading(true);
         await DocumentsService.remove(id);
         await loadData();
-        showToast("Documento removido!");
+        toast.success("Documento removido com sucesso!");
       } catch (error) {
         // Fallback
         setDocuments(documents.filter((d) => d.id !== id));
-        showToast("Documento removido (Modo Local)!");
+        toast.success("Documento removido (Modo Local)!");
       } finally {
         setIsLoading(false);
       }
@@ -197,7 +212,7 @@ export const SafetyDocsPage = () => {
       setIsModalOpen(false);
       setAnalysisResult(null);
       setEditingDocId(null);
-      showToast("Documento atualizado com sucesso!");
+      toast.success("Documento atualizado com sucesso!");
     } catch (e) {
       console.error(e);
       // Fallback Local
@@ -207,7 +222,7 @@ export const SafetyDocsPage = () => {
       setIsModalOpen(false);
       setAnalysisResult(null);
       setEditingDocId(null);
-      showToast("Documento atualizado (Modo Local)!");
+      toast.success("Documento atualizado (Modo Local)!");
     } finally {
       setIsLoading(false);
     }
@@ -310,7 +325,7 @@ export const SafetyDocsPage = () => {
         });
       }
     } catch (error) {
-      showToast("IA indisponível. Preencha os dados manualmente.", "error");
+      toast.error("IA indisponível. Preencha os dados manualmente.");
       setAnalysisResult({
         employeeName: "",
         docType: "",
@@ -483,110 +498,132 @@ export const SafetyDocsPage = () => {
       <header className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-8 no-print">
         <div className="flex items-center gap-4">
           {activeTab === "folder" && (
-            <button
+            <Button
+              variant="outline"
+              size="icon"
               onClick={() => setActiveTab("employees")}
-              className="p-3 hover:bg-white shadow-sm border border-slate-200 rounded-2xl transition-all"
+              className="h-12 w-12 rounded-2xl shadow-sm"
             >
               <ArrowLeft size={20} />
-            </button>
+            </Button>
           )}
-          <div>
-            <h2 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-              <ShieldCheck className="text-emerald-500" size={32} />
-              {activeTab === "dashboard"
-                ? "Dashboard SST"
-                : activeTab === "employees"
-                  ? "Prontuários"
-                  : `Pasta: ${selectedEmployee?.name}`}
-            </h2>
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl shadow-sm border border-emerald-100 hidden sm:flex">
+              <ShieldCheck size={28} />
+            </div>
+            <div>
+              <h2 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+                {activeTab === "dashboard"
+                  ? "Dashboard SST"
+                  : activeTab === "employees"
+                    ? "Prontuários da Equipa"
+                    : `Pasta: ${selectedEmployee?.name}`}
+              </h2>
+              <p className="text-slate-500 font-medium mt-1 text-sm">Gestão de ASOs, NRs e Documentação de Segurança</p>
+            </div>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
           <div className="relative flex-1 lg:w-64">
             <Search
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
               size={18}
             />
-            <input
+            <Input
               type="text"
               placeholder="Buscar documento..."
-              className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all shadow-sm font-medium"
+              className="pl-10 h-12 rounded-2xl font-medium"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <button
+          <Button
+            variant="outline"
             onClick={() => setIsImportModalOpen(true)}
-            className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-4 py-3 rounded-2xl flex items-center gap-2 shadow-sm font-bold transition-all whitespace-nowrap"
+            className="h-12 rounded-2xl gap-2 font-bold whitespace-nowrap shadow-sm"
           >
-            <FileSpreadsheet size={20} className="text-emerald-600" /> Importar
+            <FileSpreadsheet size={18} className="text-emerald-600" /> Importar
             CSV
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={() => setIsModalOpen(true)}
-            className="bg-slate-900 hover:bg-black text-white px-6 py-3 rounded-2xl flex items-center gap-2 shadow-xl shadow-slate-200 font-bold transition-all active:scale-95 whitespace-nowrap"
+            className="h-12 rounded-2xl gap-2 font-bold whitespace-nowrap shadow-xl shadow-slate-200"
           >
-            <Upload size={20} /> Arquivar Doc
-          </button>
+            <Upload size={18} /> Arquivar Doc
+          </Button>
         </div>
       </header>
 
       <nav className="flex gap-2 mb-8 bg-white p-1.5 rounded-2xl shadow-sm border border-slate-100 w-fit">
-        <button
+        <Button
+          variant="ghost"
           onClick={() => setActiveTab("dashboard")}
-          className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === "dashboard" ? "bg-emerald-500 text-white shadow-md" : "text-slate-500 hover:bg-slate-50"}`}
+          className={`px-4 py-2 rounded-xl text-sm font-bold transition-all h-auto ${activeTab === "dashboard" ? "bg-emerald-500 text-white shadow-md hover:bg-emerald-600 hover:text-white" : "text-slate-500 hover:bg-slate-50"}`}
         >
           Visão Geral
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
           onClick={() => setActiveTab("employees")}
-          className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === "employees" ? "bg-emerald-500 text-white shadow-md" : "text-slate-500 hover:bg-slate-50"}`}
+          className={`px-4 py-2 rounded-xl text-sm font-bold transition-all h-auto ${activeTab === "employees" ? "bg-emerald-500 text-white shadow-md hover:bg-emerald-600 hover:text-white" : "text-slate-500 hover:bg-slate-50"}`}
         >
           Prontuários (Pastas)
-        </button>
+        </Button>
       </nav>
 
       {activeTab === "dashboard" && (
         <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden">
-              <div className="absolute right-0 top-0 w-24 h-24 bg-rose-500/10 rounded-bl-full"></div>
-              <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-1">
-                Ação Requerida
-              </p>
-              <h4 className="text-4xl font-black text-slate-800">
-                {stats.expired + stats.critical}
-              </h4>
-              <AlertTriangle
-                className="absolute bottom-6 right-6 text-rose-500 opacity-20"
-                size={48}
-              />
-            </div>
-            <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden">
-              <div className="absolute right-0 top-0 w-24 h-24 bg-emerald-500/10 rounded-bl-full"></div>
-              <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-1">
-                Documentos Regulares
-              </p>
-              <h4 className="text-4xl font-black text-slate-800">{stats.ok}</h4>
-              <CheckCircle2
-                className="absolute bottom-6 right-6 text-emerald-500 opacity-20"
-                size={48}
-              />
-            </div>
-            <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden">
-              <div className="absolute right-0 top-0 w-24 h-24 bg-yellow-500/10 rounded-bl-full"></div>
-              <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-1">
-                Vencem em 90 dias
-              </p>
-              <h4 className="text-4xl font-black text-slate-800">
-                {stats.warning}
-              </h4>
-              <Info
-                className="absolute bottom-6 right-6 text-yellow-500 opacity-20"
-                size={48}
-              />
-            </div>
+            <Card className="relative overflow-hidden rounded-3xl border-rose-100 bg-rose-50/50 shadow-sm hover:shadow-md transition-all duration-300 group">
+              <CardContent className="p-6">
+                <div className="flex justify-between items-start">
+                  <div className="space-y-1">
+                    <p className="text-rose-600/80 font-bold text-xs uppercase tracking-widest">
+                      Ação Requerida
+                    </p>
+                    <h4 className="text-4xl font-black text-rose-700">
+                      {stats.expired + stats.critical}
+                    </h4>
+                  </div>
+                  <div className="p-3 bg-rose-100 text-rose-600 rounded-2xl group-hover:scale-110 transition-transform">
+                    <AlertTriangle size={24} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="relative overflow-hidden rounded-3xl border-emerald-100 bg-emerald-50/50 shadow-sm hover:shadow-md transition-all duration-300 group">
+              <CardContent className="p-6">
+                <div className="flex justify-between items-start">
+                  <div className="space-y-1">
+                    <p className="text-emerald-600/80 font-bold text-xs uppercase tracking-widest">
+                      Regulares
+                    </p>
+                    <h4 className="text-4xl font-black text-emerald-700">{stats.ok}</h4>
+                  </div>
+                  <div className="p-3 bg-emerald-100 text-emerald-600 rounded-2xl group-hover:scale-110 transition-transform">
+                    <CheckCircle2 size={24} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="relative overflow-hidden rounded-3xl border-amber-100 bg-amber-50/50 shadow-sm hover:shadow-md transition-all duration-300 group">
+              <CardContent className="p-6">
+                <div className="flex justify-between items-start">
+                  <div className="space-y-1">
+                    <p className="text-amber-600/80 font-bold text-xs uppercase tracking-widest">
+                      Vencem em 90 dias
+                    </p>
+                    <h4 className="text-4xl font-black text-amber-700">{stats.warning}</h4>
+                  </div>
+                  <div className="p-3 bg-amber-100 text-amber-600 rounded-2xl group-hover:scale-110 transition-transform">
+                    <Info size={24} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           <div className="flex justify-between items-center mb-6">
@@ -595,20 +632,22 @@ export const SafetyDocsPage = () => {
               Documentos
             </h3>
             <div className="flex gap-2">
-              <button
+              <Button
+                variant="outline"
                 onClick={exportToExcel}
                 disabled={!libsLoaded}
-                className="p-2 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-100 transition-colors flex items-center gap-2 text-sm font-bold disabled:opacity-50"
+                className="bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-100 hover:text-emerald-700"
               >
-                <Download size={16} /> Excel
-              </button>
-              <button
+                <Download size={16} className="mr-2" /> Excel
+              </Button>
+              <Button
+                variant="outline"
                 onClick={exportToPDF}
                 disabled={!libsLoaded}
-                className="p-2 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-100 transition-colors flex items-center gap-2 text-sm font-bold disabled:opacity-50"
+                className="bg-rose-50 text-rose-600 border-rose-100 hover:bg-rose-100 hover:text-rose-700"
               >
-                <FileText size={16} /> PDF
-              </button>
+                <FileText size={16} className="mr-2" /> PDF
+              </Button>
             </div>
           </div>
 
@@ -617,63 +656,74 @@ export const SafetyDocsPage = () => {
               const emp = employees.find((e) => e.id === doc.employeeId);
               const info = getStatusInfo(doc.expiryDate);
               return (
-                <div
+                <Card
                   key={doc.id}
-                  className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm relative group"
+                  className="rounded-3xl border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300 transition-all duration-300 group flex flex-col overflow-hidden"
                 >
-                  <div
-                    className={`absolute top-0 left-0 w-2 h-full ${info.bg} rounded-l-3xl`}
-                  ></div>
-                  <div className="flex justify-between items-start mb-4 ml-4">
+                  <div className={`h-1.5 w-full ${info.bg}`}></div>
+                  <CardHeader className="p-5 pb-0 flex flex-row items-start justify-between space-y-0">
                     <div
-                      className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${info.bg} text-white`}
+                      className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${info.bg} text-white`}
                     >
                       {doc.docType}
                     </div>
-                    <div className="flex gap-2">
-                      <button
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         onClick={() => handleEditDocument(doc)}
-                        className="text-slate-300 hover:text-blue-500 transition-colors"
+                        className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 h-8 w-8 rounded-lg"
                         title="Editar"
                       >
                         <Edit3 size={16} />
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         onClick={() => removeDocument(doc.id)}
-                        className="text-slate-300 hover:text-rose-500 transition-colors"
+                        className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 h-8 w-8 rounded-lg"
                         title="Excluir"
                       >
                         <Trash2 size={16} />
-                      </button>
+                      </Button>
                     </div>
-                  </div>
-                  <div className="mb-4 ml-4">
-                    <h4 className="font-black text-slate-800 text-lg truncate">
+                  </CardHeader>
+                  <CardContent className="p-5 pt-4 flex-1 flex flex-col justify-between">
+                    <div className="mb-5">
+                      <h4 className="font-bold text-slate-800 text-lg line-clamp-1" title={emp?.name}>
                       {emp?.name || "Desconhecido"}
                     </h4>
-                  </div>
-                  <div className="ml-4 space-y-2">
-                    <div className="flex justify-between text-xs font-bold">
-                      <span className="text-slate-400">VENCIMENTO</span>
-                      <span className={info.text}>
+                      <p className="text-xs text-slate-500 font-medium mt-1">Mat: {emp?.enrollment || "N/A"}</p>
+                    </div>
+                    <div className="space-y-2 bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+                      <div className="flex justify-between items-center text-xs font-bold">
+                        <span className="text-slate-500 flex items-center gap-1.5"><Calendar size={14}/> VENCIMENTO</span>
+                        <span className={`px-2 py-0.5 rounded-md ${info.bg} text-white text-[10px] uppercase tracking-wider`}>
                         {new Date(doc.expiryDate).toLocaleDateString("pt-BR", {
                           timeZone: "UTC",
                         })}
                       </span>
                     </div>
-                    <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden mt-2">
                       <div
                         className={`h-full ${info.bg}`}
                         style={{ width: `${info.percent}%` }}
                       ></div>
                     </div>
-                  </div>
-                </div>
+                    </div>
+                  </CardContent>
+                </Card>
               );
             })}
             {filteredDocuments.length === 0 && (
-              <div className="col-span-full py-12 text-center text-slate-400 font-medium border-2 border-dashed border-slate-200 rounded-3xl">
-                Nenhum documento encontrado.
+              <div className="col-span-full flex flex-col items-center justify-center py-16 px-4 border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50/50">
+                <div className="bg-white p-4 rounded-full shadow-sm mb-4">
+                  <FileX size={32} className="text-slate-400" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-700 mb-1">Nenhum documento encontrado</h3>
+                <p className="text-sm text-slate-500 text-center max-w-sm">
+                  Não existem documentos que correspondam aos filtros atuais.
+                </p>
               </div>
             )}
           </div>
@@ -692,42 +742,38 @@ export const SafetyDocsPage = () => {
               const StatusIcon = folderStatus.icon || FolderOpen;
 
               return (
-                <div
+                <Card
                   key={e.id}
-                  className="bg-white p-6 rounded-3xl border border-slate-100 flex items-center gap-4 hover:border-emerald-200 transition-all shadow-sm cursor-pointer relative overflow-hidden"
+                  className="p-5 rounded-3xl border-slate-200 flex items-center gap-4 hover:border-emerald-300 hover:shadow-md hover:-translate-y-1 transition-all duration-300 cursor-pointer relative overflow-hidden group"
                   onClick={() => {
                     setSelectedEmployee(e);
                     setActiveTab("folder");
                   }}
                 >
-                  {/* Linha indicadora de status no topo do card */}
-                  <div
-                    className={`absolute top-0 left-0 w-full h-1.5 ${folderStatus.bg}`}
-                  ></div>
-
-                  <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-500 font-black text-xl shrink-0">
+                  <div className={`absolute top-0 left-0 w-1.5 h-full ${folderStatus.bg} transition-all group-hover:w-2`}></div>
+                  <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-600 font-black text-xl shrink-0 group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors">
                     {e.name.charAt(0)}
                   </div>
 
                   <div className="flex-1 overflow-hidden">
                     <p
-                      className="font-black text-slate-800 truncate"
+                      className="font-bold text-slate-800 truncate group-hover:text-emerald-700 transition-colors"
                       title={e.name}
                     >
                       {e.name}
                     </p>
-                    <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest mt-0.5">
-                      Mat: {e.enrollment || "Geral"}
+                    <p className="text-xs text-slate-400 font-medium mt-0.5 flex items-center gap-1.5">
+                      <Briefcase size={14}/> {e.enrollment || "Geral"}
                     </p>
                   </div>
 
-                  {/* Badge de Status Inteligente */}
                   <div
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-widest ${folderStatus.bg} text-white shrink-0`}
+                    className={`flex flex-col items-center gap-1 shrink-0 px-2`}
                   >
-                    <StatusIcon size={12} /> {folderStatus.label}
+                    <StatusIcon size={22} className={folderStatus.text} />
+                    <span className={`text-[9px] font-bold uppercase tracking-widest ${folderStatus.text}`}>{folderStatus.label}</span>
                   </div>
-                </div>
+                </Card>
               );
             })}
         </div>
@@ -741,53 +787,63 @@ export const SafetyDocsPage = () => {
               .map((doc) => {
                 const info = getStatusInfo(doc.expiryDate);
                 return (
-                  <div
+                  <Card
                     key={doc.id}
-                    className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm relative group"
+                    className="rounded-3xl border-slate-200 shadow-sm hover:shadow-md transition-all duration-300 group flex flex-col overflow-hidden"
                   >
-                    <div
-                      className={`absolute top-0 left-0 w-full h-2 ${info.bg} rounded-t-3xl`}
-                    ></div>
-                    <div className="flex justify-between items-start mb-6 mt-2">
+                    <div className={`h-1.5 w-full ${info.bg}`}></div>
+                    <CardHeader className="p-5 pb-0 flex flex-row items-start justify-between space-y-0">
                       <div
-                        className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase ${info.bg} text-white`}
+                        className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${info.bg} text-white`}
                       >
                         {doc.docType}
                       </div>
-                      <div className="flex gap-2">
-                        <button
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           onClick={() => handleEditDocument(doc)}
-                          className="p-1.5 text-slate-300 hover:text-blue-500 bg-slate-50 rounded-lg transition-colors"
+                          className="text-slate-400 hover:text-blue-500 bg-slate-50 hover:bg-blue-50 h-8 w-8 rounded-lg"
                           title="Editar"
                         >
                           <Edit3 size={16} />
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           onClick={() => removeDocument(doc.id)}
-                          className="p-1.5 text-slate-300 hover:text-rose-500 bg-slate-50 rounded-lg transition-colors"
+                          className="text-slate-400 hover:text-rose-500 bg-slate-50 hover:bg-rose-50 h-8 w-8 rounded-lg"
                           title="Excluir"
                         >
                           <Trash2 size={16} />
-                        </button>
+                        </Button>
                       </div>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-slate-400 uppercase font-black mb-1">
-                        Vencimento
+                    </CardHeader>
+                    <CardContent className="p-5 pt-4 flex-1 flex flex-col justify-end">
+                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
+                        <p className="text-[10px] text-slate-400 uppercase font-black mb-1 flex items-center justify-center gap-1.5">
+                          <Calendar size={14}/> VENCIMENTO
                       </p>
                       <p className={`font-black text-2xl ${info.text}`}>
                         {new Date(doc.expiryDate).toLocaleDateString("pt-BR", {
                           timeZone: "UTC",
                         })}
                       </p>
-                    </div>
-                  </div>
+                      </div>
+                    </CardContent>
+                  </Card>
                 );
               })}
             {documents.filter((d) => d.employeeId === selectedEmployee.id)
               .length === 0 && (
-              <div className="col-span-full py-12 text-center text-slate-400 font-medium border-2 border-dashed border-slate-200 rounded-3xl">
-                Nenhum documento arquivado para este colaborador.
+              <div className="col-span-full flex flex-col items-center justify-center py-16 px-4 border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50/50">
+                <div className="bg-white p-4 rounded-full shadow-sm mb-4">
+                  <FolderOpen size={32} className="text-slate-400" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-700 mb-1">Pasta Vazia</h3>
+                <p className="text-sm text-slate-500 text-center max-w-sm">
+                  Nenhum documento arquivado para este colaborador no momento.
+                </p>
               </div>
             )}
           </div>
@@ -795,173 +851,172 @@ export const SafetyDocsPage = () => {
       )}
 
       {/* MODAL DE UPLOAD/IA */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl animate-in zoom-in-95">
-            <div className="p-6 bg-slate-900 text-white flex justify-between items-center">
-              <h3 className="font-bold text-lg flex items-center gap-2">
-                {editingDocId ? <Edit3 size={20} /> : <Upload size={20} />}
-                {editingDocId ? "Editar Documento" : "Arquivar Documento"}
-              </h3>
-              <button
-                onClick={() => {
-                  setIsModalOpen(false);
-                  setAnalysisResult(null);
-                  setEditingDocId(null);
-                }}
-              >
-                <X size={20} />
-              </button>
-            </div>
-            <div className="p-6">
-              {!analysisResult ? (
-                <div className="space-y-4">
-                  <div className="border-2 border-dashed border-emerald-200 rounded-3xl p-10 text-center relative hover:bg-emerald-50 transition-all cursor-pointer">
-                    <input
-                      type="file"
-                      className="absolute inset-0 opacity-0 cursor-pointer"
-                      onChange={(e) => analyzeDocument(e.target.files![0])}
-                      disabled={isAnalyzing}
-                    />
-                    {isAnalyzing ? (
-                      <div className="flex flex-col items-center">
-                        <Loader2
-                          className="animate-spin text-emerald-500 mb-2"
-                          size={32}
-                        />
-                        <p className="font-bold text-slate-600">
-                          A Ler com IA...
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center">
-                        <FileSearch
-                          className="text-emerald-500 mb-2"
-                          size={32}
-                        />
-                        <p className="font-bold text-slate-600">
-                          Upload para Leitura Automática (IA)
-                        </p>
-                        <p className="text-xs text-slate-400 mt-1">
-                          ASOs, Certificados NR
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                  <div className="text-center text-xs text-slate-400 font-bold uppercase">
-                    Ou
-                  </div>
-                  <button
-                    onClick={() =>
+      <Dialog
+        open={isModalOpen}
+        onOpenChange={(open) => {
+          setIsModalOpen(open);
+          if (!open) {
+            setAnalysisResult(null);
+            setEditingDocId(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-xl p-0 overflow-hidden bg-white border-none rounded-3xl gap-0 [&>button]:text-white">
+          <DialogHeader className="p-6 bg-slate-900 text-white m-0">
+            <DialogTitle className="font-bold text-lg flex items-center gap-2">
+              {editingDocId ? <Edit3 size={20} /> : <Upload size={20} />}
+              {editingDocId ? "Editar Documento" : "Arquivar Documento"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="p-6">
+            {!analysisResult ? (
+              <div className="space-y-4">
+                <div className="border-2 border-dashed border-emerald-200 rounded-3xl p-10 text-center relative hover:bg-emerald-50 transition-all cursor-pointer">
+                  <input
+                    type="file"
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                    onChange={(e) => analyzeDocument(e.target.files![0])}
+                    disabled={isAnalyzing}
+                  />
+                  {isAnalyzing ? (
+                    <div className="flex flex-col items-center">
+                      <Loader2
+                        className="animate-spin text-emerald-500 mb-2"
+                        size={32}
+                      />
+                      <p className="font-bold text-slate-600">
+                        A Ler com IA...
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center">
+                      <FileSearch className="text-emerald-500 mb-2" size={32} />
+                      <p className="font-bold text-slate-600">
+                        Upload para Leitura Automática (IA)
+                      </p>
+                      <p className="text-xs text-slate-400 mt-1">
+                        ASOs, Certificados NR
+                      </p>
+                    </div>
+                  )}
+                </div>
+                <div className="text-center text-xs text-slate-400 font-bold uppercase">
+                  Ou
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    setAnalysisResult({
+                      docType: "",
+                      issueDate: "",
+                      expiryDate: "",
+                      employeeId: selectedEmployee?.id || "",
+                    })
+                  }
+                  className="w-full h-12 rounded-2xl font-bold text-slate-600 flex items-center justify-center gap-2"
+                >
+                  <Edit3 size={18} /> Preenchimento Manual
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">
+                    Colaborador
+                  </label>
+                  <Select
+                    value={analysisResult.employeeId}
+                    onValueChange={(val) =>
                       setAnalysisResult({
-                        docType: "",
-                        issueDate: "",
-                        expiryDate: "",
-                        employeeId: selectedEmployee?.id || "",
+                        ...analysisResult,
+                        employeeId: val,
                       })
                     }
-                    className="w-full py-3 border border-slate-200 rounded-2xl font-bold text-slate-600 hover:bg-slate-50 flex items-center justify-center gap-2"
                   >
-                    <Edit3 size={18} /> Preenchimento Manual
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1">
-                      Colaborador
-                    </label>
-                    <select
-                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-medium"
-                      value={analysisResult.employeeId}
-                      onChange={(e) =>
-                        setAnalysisResult({
-                          ...analysisResult,
-                          employeeId: e.target.value,
-                        })
-                      }
-                    >
-                      <option value="">Selecione...</option>
+                    <SelectTrigger className="w-full bg-slate-50 border-slate-200 rounded-xl h-12 font-medium">
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
                       {employees.map((e) => (
-                        <option key={e.id} value={e.id}>
+                        <SelectItem key={e.id} value={e.id}>
                           {e.name}
-                        </option>
+                        </SelectItem>
                       ))}
-                    </select>
-                  </div>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">
+                    Tipo de Documento (Ex: NR 35)
+                  </label>
+                  <Input
+                    className="w-full bg-slate-50 border-slate-200 rounded-xl h-12 font-medium"
+                    value={analysisResult.docType}
+                    onChange={(e) =>
+                      setAnalysisResult({
+                        ...analysisResult,
+                        docType: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-500 mb-1">
-                      Tipo de Documento (Ex: NR 35)
+                      Emissão (Opcional)
                     </label>
-                    <input
-                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-medium"
-                      value={analysisResult.docType}
+                    <Input
+                      type="date"
+                      className="w-full bg-slate-50 border-slate-200 rounded-xl h-12 font-medium"
+                      value={analysisResult.issueDate}
                       onChange={(e) =>
                         setAnalysisResult({
                           ...analysisResult,
-                          docType: e.target.value,
+                          issueDate: e.target.value,
                         })
                       }
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 mb-1">
-                        Emissão (Opcional)
-                      </label>
-                      <input
-                        type="date"
-                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-medium"
-                        value={analysisResult.issueDate}
-                        onChange={(e) =>
-                          setAnalysisResult({
-                            ...analysisResult,
-                            issueDate: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 mb-1">
-                        Data de Vencimento
-                      </label>
-                      <input
-                        type="date"
-                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-medium"
-                        value={analysisResult.expiryDate}
-                        onChange={(e) =>
-                          setAnalysisResult({
-                            ...analysisResult,
-                            expiryDate: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1">
+                      Data de Vencimento
+                    </label>
+                    <Input
+                      type="date"
+                      className="w-full bg-slate-50 border-slate-200 rounded-xl h-12 font-medium"
+                      value={analysisResult.expiryDate}
+                      onChange={(e) =>
+                        setAnalysisResult({
+                          ...analysisResult,
+                          expiryDate: e.target.value,
+                        })
+                      }
+                    />
                   </div>
-
-                  <button
-                    onClick={() =>
-                      editingDocId
-                        ? updateDocument(editingDocId, analysisResult)
-                        : addDocument(analysisResult)
-                    }
-                    disabled={
-                      !analysisResult.employeeId ||
-                      !analysisResult.docType ||
-                      !analysisResult.expiryDate
-                    }
-                    className="w-full bg-emerald-600 text-white p-4 rounded-xl font-bold hover:bg-emerald-700 disabled:opacity-50 mt-4 shadow-lg"
-                  >
-                    {editingDocId
-                      ? "Guardar Alterações"
-                      : "Confirmar Arquivamento"}
-                  </button>
                 </div>
-              )}
-            </div>
+
+                <Button
+                  onClick={() =>
+                    editingDocId
+                      ? updateDocument(editingDocId, analysisResult)
+                      : addDocument(analysisResult)
+                  }
+                  disabled={
+                    !analysisResult.employeeId ||
+                    !analysisResult.docType ||
+                    !analysisResult.expiryDate
+                  }
+                  className="w-full h-12 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 mt-4 shadow-lg"
+                >
+                  {editingDocId
+                    ? "Guardar Alterações"
+                    : "Confirmar Arquivamento"}
+                </Button>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
 
       {isImportModalOpen && (
         <ImportSSTModal
@@ -969,13 +1024,6 @@ export const SafetyDocsPage = () => {
           employees={employees}
           onImportSuccess={() => loadData()}
         />
-      )}
-
-      {toast && (
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 rounded-2xl shadow-xl flex items-center gap-2 bg-slate-900 text-white animate-in slide-in-from-bottom-4">
-          <CheckCircle2 className="text-emerald-400" size={18} />{" "}
-          <span className="font-bold text-sm">{toast.message}</span>
-        </div>
       )}
     </div>
   );

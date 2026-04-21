@@ -8,9 +8,14 @@ export interface Employee {
   createdAt: string;
 }
 
+export interface PaginatedEmployeesResponse {
+  data: Employee[];
+  total: number;
+}
+
 interface Data {
   name: string;
-  enrolment: string;
+  enrollment?: string;
 }
 
 export const EmployeesService = {
@@ -18,8 +23,8 @@ export const EmployeesService = {
    * Busca todos os colaboradores cadastrados.
    * Rota NestJS: GET /api/employees
    */
-  async findAll(): Promise<Employee[]> {
-    return api.get<Employee[]>("/employees");
+  async findAll(page = 1, limit = 1000): Promise<PaginatedEmployeesResponse> {
+    return api.get<PaginatedEmployeesResponse>(`/employees?page=${page}&limit=${limit}`);
   },
 
   /**
@@ -52,5 +57,13 @@ export const EmployeesService = {
    */
   async remove(id: string): Promise<Employee> {
     return api.delete<Employee>(`/employees/${id}`);
+  },
+
+  /**
+   * Busca as estatísticas de saldo e folgas dos colaboradores.
+   * Rota NestJS: GET /api/employees/stats
+   */
+  async getStats(): Promise<any[]> {
+    return api.get<any[]>("/employees/stats");
   },
 };

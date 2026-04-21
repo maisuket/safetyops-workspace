@@ -7,6 +7,10 @@ import {
   HttpStatus,
   Param,
   ParseUUIDPipe,
+  Delete,
+  Query,
+  DefaultValuePipe,
+  ParseIntPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -63,7 +67,17 @@ export class RecordsController {
   @Get()
   @ApiOperation({ summary: 'Obter todos os registos' })
   @ApiResponse({ status: 200, description: 'Lista de registos.' })
-  async findAll() {
-    return this.recordsService.findAll();
+  async findAll(
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+  ) {
+    return this.recordsService.findAll(page, limit);
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Excluir um registo permanentemente' })
+  @ApiResponse({ status: 200, description: 'Registo removido com sucesso.' })
+  async remove(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
+    return this.recordsService.remove(id);
   }
 }

@@ -10,6 +10,12 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { DocumentsService } from "../../../services/documents.service";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface ImportSSTModalProps {
   closeModal: () => void;
@@ -235,21 +241,27 @@ export const ImportSSTModal: React.FC<ImportSSTModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
-        <div className="p-6 bg-slate-900 text-white flex justify-between items-center shrink-0">
-          <h3 className="text-xl font-bold flex items-center gap-2">
+    <Dialog
+      open={true}
+      onOpenChange={(open) => {
+        if (!open && !isUploading) closeModal();
+      }}
+    >
+      <DialogContent
+        className="sm:max-w-xl p-0 overflow-hidden bg-white border-none rounded-3xl gap-0 [&>button]:text-white flex flex-col max-h-[90vh]"
+        onInteractOutside={(e) => {
+          if (isUploading) e.preventDefault();
+        }}
+        onEscapeKeyDown={(e) => {
+          if (isUploading) e.preventDefault();
+        }}
+      >
+        <DialogHeader className="p-6 bg-slate-900 text-white m-0 shrink-0">
+          <DialogTitle className="text-xl font-bold flex items-center gap-2">
             <ShieldCheck size={20} className="text-emerald-400" /> Importação em
             Lote (SST)
-          </h3>
-          <button
-            onClick={closeModal}
-            className="hover:bg-white/10 p-1 rounded-full transition-colors disabled:opacity-50"
-            disabled={isUploading}
-          >
-            <X size={24} />
-          </button>
-        </div>
+          </DialogTitle>
+        </DialogHeader>
 
         <div className="p-6 overflow-y-auto grow space-y-6">
           {/* Passo 1: Upload */}
@@ -429,7 +441,7 @@ export const ImportSSTModal: React.FC<ImportSSTModalProps> = ({
             Confirmar Importação
           </button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };

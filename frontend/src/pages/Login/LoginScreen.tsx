@@ -1,6 +1,9 @@
 import { useState } from "react";
 
 import { Hexagon, Lock, User } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
 
 export const LoginScreen = ({ onLogin }) => {
   const [username, setUsername] = useState("");
@@ -19,7 +22,7 @@ export const LoginScreen = ({ onLogin }) => {
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-500">
+      <Card className="rounded-3xl w-full max-w-sm shadow-2xl border-slate-100 overflow-hidden animate-in zoom-in-95 duration-500">
         <div className="bg-slate-900 p-8 text-center">
           <div className="w-16 h-16 bg-emerald-500 rounded-2xl mx-auto flex items-center justify-center shadow-lg shadow-emerald-500/30 mb-4 transform -rotate-6">
             <Hexagon size={32} className="text-white" />
@@ -44,13 +47,13 @@ export const LoginScreen = ({ onLogin }) => {
               <div className="relative">
                 <User
                   size={18}
-                  className="absolute left-3 top-3.5 text-slate-400"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
                 />
-                <input
+                <Input
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all font-medium text-slate-700"
+                  className="pl-10 h-12 rounded-xl bg-slate-50 font-medium text-slate-700"
                   placeholder="admin"
                   required
                 />
@@ -63,27 +66,27 @@ export const LoginScreen = ({ onLogin }) => {
               <div className="relative">
                 <Lock
                   size={18}
-                  className="absolute left-3 top-3.5 text-slate-400"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
                 />
-                <input
+                <Input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all font-medium text-slate-700"
+                  className="pl-10 h-12 rounded-xl bg-slate-50 font-medium text-slate-700"
                   placeholder="123"
                   required
                 />
               </div>
             </div>
           </div>
-          <button
+          <Button
             type="submit"
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-emerald-600/20 active:scale-95 flex justify-center items-center gap-2"
+            className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20"
           >
             Entrar no Sistema
-          </button>
+          </Button>
         </form>
-      </div>
+      </Card>
     </div>
   );
 };

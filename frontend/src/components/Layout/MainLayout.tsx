@@ -1,4 +1,5 @@
 import { Sidebar } from "./Sidebar";
+import { Toaster } from "@/components/ui/sonner";
 
 /**
  * ============================================================================
@@ -20,6 +21,7 @@ export const MainLayout = ({
       />
       <main className="flex-1 h-screen overflow-y-auto relative">
         {children}
+        <Toaster position="top-right" richColors />
       </main>
     </div>
   );

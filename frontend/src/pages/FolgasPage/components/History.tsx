@@ -9,6 +9,24 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { Employee, FolgaRecord } from "../FolgasPage";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 // --- History Component ---
 interface HistoryComponentProps {
@@ -56,9 +74,9 @@ export const HistoryComponent: React.FC<HistoryComponentProps> = ({
   }, [records, employees, searchTerm, filterType]);
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden animate-in slide-in-from-bottom-4 duration-500">
+    <Card className="rounded-2xl shadow-sm border-slate-100 overflow-hidden animate-in slide-in-from-bottom-4 duration-500">
       {/* Header com Filtros */}
-      <div className="p-6 border-b border-slate-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="p-6 border-b border-slate-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white">
         <h2 className="text-lg font-bold text-slate-800">
           Histórico de Lançamentos
         </h2>
@@ -69,56 +87,69 @@ export const HistoryComponent: React.FC<HistoryComponentProps> = ({
               className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
               size={16}
             />
-            <input
-              type="text"
+            <Input
               placeholder="Buscar colaborador ou desc..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full sm:w-64 pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
+              className="w-full sm:w-64 pl-9 bg-slate-50 rounded-xl text-sm transition-all"
             />
           </div>
 
-          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl p-1">
-            <Filter size={16} className="text-slate-400 ml-2" />
-            <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value as any)}
-              className="bg-transparent text-sm font-medium text-slate-600 border-none outline-none py-1.5 pr-4 cursor-pointer"
-            >
-              <option value="all">Todos</option>
-              <option value="trabalho">Apenas Créditos</option>
-              <option value="folga">Apenas Folgas</option>
-            </select>
-          </div>
+          <Select
+            value={filterType}
+            onValueChange={(val: any) => setFilterType(val)}
+          >
+            <SelectTrigger className="w-full sm:w-[180px] bg-slate-50 rounded-xl h-10">
+              <div className="flex items-center gap-2">
+                <Filter size={16} className="text-slate-400" />
+                <SelectValue placeholder="Filtros" />
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="trabalho">Apenas Créditos</SelectItem>
+              <SelectItem value="folga">Apenas Folgas</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
       {/* Tabela de Dados */}
       <div className="overflow-x-auto max-h-[600px] custom-scrollbar">
-        <table className="w-full text-left relative">
-          <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold sticky top-0 z-10 shadow-sm">
-            <tr>
-              <th className="px-6 py-4">Data</th>
-              <th className="px-6 py-4">Tipo</th>
-              <th className="px-6 py-4">Colaborador</th>
-              <th className="px-6 py-4">Descrição/Referência</th>
-              <th className="px-6 py-4 text-right">Ação</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-50">
+        <Table className="w-full text-left relative bg-white">
+          <TableHeader className="bg-slate-50 sticky top-0 z-10 shadow-sm">
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="font-semibold text-slate-500">
+                Data
+              </TableHead>
+              <TableHead className="font-semibold text-slate-500">
+                Tipo
+              </TableHead>
+              <TableHead className="font-semibold text-slate-500">
+                Colaborador
+              </TableHead>
+              <TableHead className="font-semibold text-slate-500">
+                Descrição/Referência
+              </TableHead>
+              <TableHead className="font-semibold text-slate-500 text-right">
+                Ação
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {filteredRecords.map((record) => {
               const emp = employees.find((e) => e.id === record.employeeId);
               return (
-                <tr
+                <TableRow
                   key={record.id}
                   className="hover:bg-slate-50 transition-colors"
                 >
-                  <td className="px-6 py-4 text-sm text-slate-600 font-mono">
+                  <TableCell className="text-sm text-slate-600 font-mono py-4">
                     {new Date(record.date).toLocaleDateString("pt-BR", {
                       timeZone: "UTC",
                     })}
-                  </td>
-                  <td className="px-6 py-4">
+                  </TableCell>
+                  <TableCell className="py-4">
                     {record.type === "trabalho" ? (
                       <span className="flex items-center gap-1 text-emerald-600 text-sm font-medium">
                         <TrendingUp size={14} /> Crédito
@@ -128,65 +159,71 @@ export const HistoryComponent: React.FC<HistoryComponentProps> = ({
                         <Clock size={14} /> Folga
                       </span>
                     )}
-                  </td>
-                  <td className="px-6 py-4 font-black text-slate-700">
+                  </TableCell>
+                  <TableCell className="font-black text-slate-700 py-4">
                     {emp?.name || "Desconhecido"}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-slate-500 italic">
+                  </TableCell>
+                  <TableCell className="text-sm text-slate-500 italic py-4">
                     {record.description ||
                       (record.refDate ? `Ref: ${record.refDate}` : "N/A")}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <button
+                  </TableCell>
+                  <TableCell className="text-right py-4">
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       onClick={() => deleteRecord(record.id)}
-                      className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                      className="text-slate-400 hover:text-rose-500 hover:bg-rose-50"
                       title="Excluir Lançamento"
                     >
                       <Trash2 size={18} />
-                    </button>
-                  </td>
-                </tr>
+                    </Button>
+                  </TableCell>
+                </TableRow>
               );
             })}
 
             {filteredRecords.length === 0 && !isLoading && (
-              <tr>
-                <td
+              <TableRow className="hover:bg-transparent">
+                <TableCell
                   colSpan={5}
-                  className="px-6 py-12 text-center text-slate-400"
+                  className="py-12 text-center text-slate-400"
                 >
                   Nenhum registo encontrado com estes filtros.
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             )}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
       {/* Controles de Paginação */}
-      <div className="p-4 border-t border-slate-100 flex justify-between items-center text-sm">
+      <div className="p-4 border-t border-slate-100 flex justify-between items-center text-sm bg-white">
         <span className="font-medium text-slate-500">
           Página {currentPage} de {totalPages}
         </span>
         <div className="flex items-center gap-2">
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setCurrentPage(currentPage - 1)}
             disabled={currentPage === 1 || isLoading}
-            className="p-2 flex items-center gap-1 rounded-lg hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-1 rounded-lg"
           >
             <ChevronLeft size={16} />
             Anterior
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setCurrentPage(currentPage + 1)}
             disabled={currentPage === totalPages || isLoading}
-            className="p-2 flex items-center gap-1 rounded-lg hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-1 rounded-lg"
           >
             Próximo
             <ChevronRight size={16} />
-          </button>
+          </Button>
         </div>
       </div>
-    </div>
+    </Card>
   );
 };

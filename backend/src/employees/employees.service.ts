@@ -21,11 +21,23 @@ export class EmployeesService {
   /**
    * Retorna todos os colaboradores ordenados por nome
    */
-  async findAll(): Promise<Employee[]> {
+  async findAll(
+    page = 1,
+    limit = 20,
+  ): Promise<{ data: Employee[]; total: number }> {
+    const skip = (page - 1) * limit;
+
     try {
-      return await this.prisma.employee.findMany({
-        orderBy: { name: 'asc' },
-      });
+      const [employees, total] = await this.prisma.$transaction([
+        this.prisma.employee.findMany({
+          skip,
+          take: limit,
+          orderBy: { name: 'asc' },
+        }),
+        this.prisma.employee.count(),
+      ]);
+
+      return { data: employees, total };
     } catch (error) {
       this.logger.error(
         `Erro ao buscar colaboradores: ${error.message}`,

@@ -8,6 +8,7 @@ import {
   Users,
   Hexagon,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 /**
  * ============================================================================
@@ -62,23 +63,25 @@ export const Sidebar = ({ activePage, setActivePage, onLogout }) => {
           const Icon = item.icon;
           const isActive = activePage === item.id;
           return (
-            <button
+            <Button
               key={item.id}
+              variant="ghost"
               onClick={() => setActivePage(item.id)}
-              className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all font-medium whitespace-nowrap md:whitespace-normal ${isActive ? "bg-emerald-500 text-white" : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"}`}
+              className={`justify-start gap-3 px-4 h-auto py-3.5 rounded-xl transition-all font-medium whitespace-nowrap md:whitespace-normal ${isActive ? "bg-emerald-500 text-white hover:bg-emerald-600 hover:text-white" : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"}`}
             >
               <Icon size={20} /> {item.label}
-            </button>
+            </Button>
           );
         })}
       </div>
       <div className="p-4 border-t border-slate-800 hidden md:block">
-        <button
+        <Button
+          variant="ghost"
           onClick={onLogout}
-          className="flex items-center gap-3 px-4 py-3 w-full text-left rounded-xl transition-all font-medium text-rose-400 hover:bg-rose-500/10"
+          className="w-full justify-start gap-3 px-4 h-auto py-3 rounded-xl transition-all font-medium text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
         >
           <LogOut size={20} /> Sair do Sistema
-        </button>
+        </Button>
       </div>
     </aside>
   );

@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import { EmployeeStat, FolgaRecord } from "../FolgasPage";
 import { RecordsService } from "../../../services/records.service";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 // --- Employee Details Component ---
 interface EmployeeDetailsProps {
@@ -136,16 +138,18 @@ export const EmployeeDetails: React.FC<EmployeeDetailsProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden animate-in slide-in-from-right-8 duration-500">
-      <div className="p-6 border-b border-slate-50 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-slate-900 text-white">
+    <Card className="overflow-hidden animate-in slide-in-from-right-8 duration-500">
+      <CardHeader className="p-6 flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-slate-900 text-white rounded-none border-b border-slate-800">
         <div className="flex items-center gap-4">
-          <button
+          <Button
+            variant="outline"
+            size="icon"
             onClick={() => setSelectedEmployeeId(null)}
-            className="p-2 bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors text-slate-300"
+            className="bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700 h-11 w-11"
             title="Voltar ao Resumo"
           >
             <ChevronLeft size={24} />
-          </button>
+          </Button>
           <div>
             <h2 className="text-xl md:text-2xl font-black">{emp.name}</h2>
             <div className="flex gap-4 mt-1 text-sm">
@@ -160,15 +164,15 @@ export const EmployeeDetails: React.FC<EmployeeDetailsProps> = ({
           </div>
         </div>
 
-        <button
+        <Button
           onClick={generateExtractPDF}
-          className="w-full md:w-auto bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 font-bold transition-all shadow-lg"
+          className="w-full md:w-auto bg-emerald-600 hover:bg-emerald-500 shadow-lg h-11"
         >
-          <FileText size={18} /> Extrato PDF
-        </button>
-      </div>
+          <FileText size={18} className="mr-2" /> Extrato PDF
+        </Button>
+      </CardHeader>
 
-      <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8 bg-slate-50/50">
+      <CardContent className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8 bg-slate-50/50">
         {isLoading && (
           <div className="col-span-full flex flex-col items-center justify-center py-12">
             <Loader2 className="animate-spin text-emerald-500 mb-4" size={40} />
@@ -181,125 +185,138 @@ export const EmployeeDetails: React.FC<EmployeeDetailsProps> = ({
         {!isLoading && (
           <>
             {/* Lado Esquerdo: Créditos */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-              <h3 className="text-lg font-bold flex items-center gap-2 mb-4 text-emerald-700 border-b border-slate-100 pb-3">
-                <TrendingUp size={20} /> Domingos Trabalhados
-                <span className="ml-auto bg-emerald-100 text-emerald-700 py-0.5 px-2.5 rounded-lg text-xs font-black">
-                  {trabalhos.length}
-                </span>
-              </h3>
-              {trabalhos.length === 0 ? (
-                <p className="text-slate-400 text-sm italic text-center py-6">
-                  Nenhum domingo trabalhado.
-                </p>
-              ) : (
-                <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
-                  {trabalhos.map((t) => {
-                    const dateString = new Date(t.date).toLocaleDateString(
-                      "pt-BR",
-                      { timeZone: "UTC" },
-                    );
-                    const refString = `${dateString} - ${t.local || "Sem local"}`;
+            <Card>
+              <CardHeader className="p-5 pb-3 border-b">
+                <CardTitle className="text-lg font-bold flex items-center gap-2 text-emerald-700">
+                  <TrendingUp size={20} /> Domingos Trabalhados
+                  <span className="ml-auto bg-emerald-100 text-emerald-700 py-0.5 px-2.5 rounded-lg text-xs font-black">
+                    {trabalhos.length}
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-5 pt-4">
+                {trabalhos.length === 0 ? (
+                  <p className="text-slate-400 text-sm italic text-center py-6">
+                    Nenhum domingo trabalhado.
+                  </p>
+                ) : (
+                  <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
+                    {trabalhos.map((t) => {
+                      const dateString = new Date(t.date).toLocaleDateString(
+                        "pt-BR",
+                        { timeZone: "UTC" },
+                      );
+                      const refString = `${dateString} - ${t.local || "Sem local"}`;
 
-                    const isUsed = folgasDoFuncionario.some(
-                      (ref) =>
-                        ref && (ref === refString || ref.includes(dateString)),
-                    );
+                      const isUsed = folgasDoFuncionario.some(
+                        (ref) =>
+                          ref &&
+                          (ref === refString || ref.includes(dateString)),
+                      );
 
-                    return (
-                      <div
-                        key={t.id}
-                        className={`p-4 rounded-xl flex flex-col gap-1 border ${isUsed ? "bg-slate-50 border-slate-200" : "bg-emerald-50/50 border-emerald-100"}`}
-                      >
-                        <div className="flex justify-between items-start">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`text-xs font-bold px-2 py-0.5 rounded-md ${isUsed ? "bg-slate-200 text-slate-500" : "bg-emerald-100 text-emerald-600"}`}
-                            >
-                              {dateString}
-                            </span>
-                            {t.local && (
-                              <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-md border border-slate-200">
-                                {t.local}
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="flex items-center gap-3">
-                            <span
-                              className={`text-[10px] uppercase font-black px-2 py-0.5 rounded-full ${isUsed ? "bg-slate-200 text-slate-400" : "bg-emerald-500 text-white shadow-sm"}`}
-                            >
-                              {isUsed ? "Compensado" : "Disponível"}
-                            </span>
-                            <button
-                              onClick={() => handleDelete(t.id)}
-                              className="text-slate-300 hover:text-rose-500 transition-colors"
-                              title="Reverter / Excluir Lançamento"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
-                        </div>
-                        <span
-                          className={`font-medium text-sm mt-2 ${isUsed ? "text-slate-400 line-through" : "text-slate-700"}`}
+                      return (
+                        <div
+                          key={t.id}
+                          className={`p-4 rounded-xl flex flex-col gap-1 border ${isUsed ? "bg-slate-50 border-slate-200" : "bg-emerald-50/50 border-emerald-100"}`}
                         >
-                          {t.description || "Sem descrição"}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+                          <div className="flex justify-between items-start">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`text-xs font-bold px-2 py-0.5 rounded-md ${isUsed ? "bg-slate-200 text-slate-500" : "bg-emerald-100 text-emerald-600"}`}
+                              >
+                                {dateString}
+                              </span>
+                              {t.local && (
+                                <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-md border border-slate-200">
+                                  {t.local}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                              <span
+                                className={`text-[10px] uppercase font-black px-2 py-0.5 rounded-full ${isUsed ? "bg-slate-200 text-slate-400" : "bg-emerald-500 text-white shadow-sm"}`}
+                              >
+                                {isUsed ? "Compensado" : "Disponível"}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDelete(t.id)}
+                                className="text-slate-400 hover:text-rose-500 h-8 w-8"
+                                title="Reverter / Excluir Lançamento"
+                              >
+                                <Trash2 size={16} />
+                              </Button>
+                            </div>
+                          </div>
+                          <span
+                            className={`font-medium text-sm mt-2 ${isUsed ? "text-slate-400 line-through" : "text-slate-700"}`}
+                          >
+                            {t.description || "Sem descrição"}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
             {/* Lado Direito: Débitos */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-              <h3 className="text-lg font-bold flex items-center gap-2 mb-4 text-amber-600 border-b border-slate-100 pb-3">
-                <Clock size={20} /> Folgas Gozadas
-                <span className="ml-auto bg-amber-100 text-amber-700 py-0.5 px-2.5 rounded-lg text-xs font-black">
-                  {folgas.length}
-                </span>
-              </h3>
-              {folgas.length === 0 ? (
-                <p className="text-slate-400 text-sm italic text-center py-6">
-                  Nenhuma folga registada.
-                </p>
-              ) : (
-                <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
-                  {folgas.map((f) => (
-                    <div
-                      key={f.id}
-                      className="p-4 bg-amber-50/50 border border-amber-100 rounded-xl flex flex-col gap-1 relative overflow-hidden group"
-                    >
-                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-400"></div>
-                      <div className="flex justify-between items-start ml-2 pr-2">
-                        <span className="text-xs font-bold text-amber-600 bg-white border border-amber-100 w-fit px-2 py-0.5 rounded-md">
-                          {new Date(f.date).toLocaleDateString("pt-BR", {
-                            timeZone: "UTC",
-                          })}
+            <Card>
+              <CardHeader className="p-5 pb-3 border-b">
+                <CardTitle className="text-lg font-bold flex items-center gap-2 text-amber-600">
+                  <Clock size={20} /> Folgas Gozadas
+                  <span className="ml-auto bg-amber-100 text-amber-700 py-0.5 px-2.5 rounded-lg text-xs font-black">
+                    {folgas.length}
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-5 pt-4">
+                {folgas.length === 0 ? (
+                  <p className="text-slate-400 text-sm italic text-center py-6">
+                    Nenhuma folga registada.
+                  </p>
+                ) : (
+                  <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
+                    {folgas.map((f) => (
+                      <div
+                        key={f.id}
+                        className="p-4 bg-amber-50/50 border border-amber-100 rounded-xl flex flex-col gap-1 relative overflow-hidden group"
+                      >
+                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-400"></div>
+                        <div className="flex justify-between items-start ml-2 pr-2">
+                          <span className="text-xs font-bold text-amber-600 bg-white border border-amber-100 w-fit px-2 py-0.5 rounded-md">
+                            {new Date(f.date).toLocaleDateString("pt-BR", {
+                              timeZone: "UTC",
+                            })}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDelete(f.id)}
+                            className="text-slate-400 hover:text-rose-500 h-8 w-8 opacity-0 group-hover:opacity-100"
+                            title="Reverter Folga"
+                          >
+                            <Trash2 size={16} />
+                          </Button>
+                        </div>
+                        <span className="text-slate-700 font-medium text-sm mt-2 ml-2">
+                          <span className="text-slate-400 font-normal mr-1">
+                            Ref:
+                          </span>{" "}
+                          {f.refDate || "Sem referência"}
                         </span>
-                        <button
-                          onClick={() => handleDelete(f.id)}
-                          className="text-slate-300 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100"
-                          title="Reverter Folga"
-                        >
-                          <Trash2 size={16} />
-                        </button>
                       </div>
-                      <span className="text-slate-700 font-medium text-sm mt-2 ml-2">
-                        <span className="text-slate-400 font-normal mr-1">
-                          Ref:
-                        </span>{" "}
-                        {f.refDate || "Sem referência"}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </>
         )}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 };

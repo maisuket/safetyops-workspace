@@ -1,4 +1,10 @@
-import { Calendar, FileText, X } from "lucide-react";
+import { Calendar, FileText } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 // --- Report Modal Component ---
 interface ReportModalProps {
@@ -14,19 +20,19 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   reportPeriod,
   setReportPeriod,
 }) => (
-  <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-    <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col">
-      <div className="p-6 bg-amber-500 text-white flex justify-between items-center shrink-0">
-        <h3 className="text-xl font-bold flex items-center gap-2">
+  <Dialog
+    open={true}
+    onOpenChange={(open) => {
+      if (!open) setIsReportModalOpen(false);
+    }}
+  >
+    <DialogContent className="sm:max-w-sm p-0 overflow-hidden bg-white border-none rounded-3xl gap-0 [&>button]:text-white flex flex-col">
+      <DialogHeader className="p-6 bg-amber-500 text-white m-0 shrink-0">
+        <DialogTitle className="text-xl font-bold flex items-center gap-2">
           <Calendar size={20} /> Relatório de Folgas
-        </h3>
-        <button
-          onClick={() => setIsReportModalOpen(false)}
-          className="hover:bg-white/20 p-1 rounded-full transition-colors"
-        >
-          <X size={24} />
-        </button>
-      </div>
+        </DialogTitle>
+      </DialogHeader>
+
       <div className="p-6">
         <form
           id="reportForm"
@@ -75,6 +81,6 @@ export const ReportModal: React.FC<ReportModalProps> = ({
           <FileText size={20} /> Gerar PDF
         </button>
       </div>
-    </div>
-  </div>
+    </DialogContent>
+  </Dialog>
 );

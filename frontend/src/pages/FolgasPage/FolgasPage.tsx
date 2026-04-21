@@ -1,19 +1,5 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
-import {
-  Plus,
-  Users,
-  Calendar,
-  FileText,
-  Download,
-  Trash2,
-  TrendingUp,
-  Clock,
-  X,
-  Search,
-  CheckSquare,
-  ChevronLeft,
-  Loader2,
-} from "lucide-react";
+import { Plus, Loader2, Calendar } from "lucide-react";
 import { EmployeesService } from "../../services/employees.service";
 import { RecordsService } from "../../services/records.service";
 import { INITIAL_EMPLOYEES } from "../../services/data-initial";
@@ -22,6 +8,8 @@ import { Dashboard } from "./components/Dashboard";
 import { HistoryComponent } from "./components/History";
 import { LaunchModal } from "./modal/LaunchModal";
 import { ReportModal } from "./modal/ReportsModal";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 /**
  * ============================================================================
@@ -68,6 +56,9 @@ export const FolgasPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [totalRecords, setTotalRecords] = useState(0);
+  const [selectedEmployeesRecords, setSelectedEmployeesRecords] = useState<
+    FolgaRecord[]
+  >([]);
 
   const isFetchingOrSeeding = useRef<boolean>(false);
 
@@ -121,21 +112,25 @@ export const FolgasPage = () => {
     try {
       setIsLoading(true);
       // Busca os stats e os colaboradores em paralelo
-      let [statsData, empsData] = await Promise.all([
+      let [statsData, empsResponse] = await Promise.all([
         EmployeesService.getStats(),
-        EmployeesService.findAll(),
+        EmployeesService.findAll(1, 1000),
       ]);
+
+      let empsData = empsResponse.data;
 
       // Seeding inicial (lógica mantida)
       if (empsData.length === 0 && INITIAL_EMPLOYEES?.length > 0) {
         console.log("A semear base de dados com técnicos iniciais...");
         for (let i = 0; i < INITIAL_EMPLOYEES.length; i++) {
-          await EmployeesService.create(INITIAL_EMPLOYEES[i]);
+          await EmployeesService.create(INITIAL_EMPLOYEES[i] as any);
         }
-        [statsData, empsData] = await Promise.all([
+        const [newStats, newEmps] = await Promise.all([
           EmployeesService.getStats(),
-          EmployeesService.findAll(),
+          EmployeesService.findAll(1, 1000),
         ]);
+        statsData = newStats;
+        empsData = newEmps.data;
       }
 
       // Busca os registos paginados
@@ -181,21 +176,39 @@ export const FolgasPage = () => {
     // pois os dados agora são paginados e não representam o todo.
   }, [records]);
 
+  // Busca o histórico detalhado dos colaboradores sempre que são selecionados no Modal
+  useEffect(() => {
+    const fetchSelectedRecords = async () => {
+      if (newRecord.employeeIds.length === 0) {
+        setSelectedEmployeesRecords([]);
+        return;
+      }
+      try {
+        const promises = newRecord.employeeIds.map((id) =>
+          RecordsService.findByEmployee(id),
+        );
+        const results = await Promise.all(promises);
+        // @ts-ignore
+        setSelectedEmployeesRecords(results.flat());
+      } catch (error) {
+        console.error("Erro ao buscar histórico pendente:", error);
+      }
+    };
+    fetchSelectedRecords();
+  }, [newRecord.employeeIds]);
+
   // =========================================================================================
   // LÓGICA INTELIGENTE DE CÁLCULO DE TRABALHOS PENDENTES (Não requer alterações na DB!)
   // =========================================================================================
   const pastWorksOptions = useMemo(() => {
     if (newRecord.employeeIds.length === 0) return [];
 
-    // ATENÇÃO: Esta lógica agora depende de todos os registos.
-    // Para funcionar corretamente com paginação, seria necessário um novo endpoint
-    // para buscar apenas os trabalhos pendentes de um colaborador.
-    const works = employeeStats.flatMap(
+    const works = selectedEmployeesRecords.filter(
       (r) =>
         r.type === "trabalho" && newRecord.employeeIds.includes(r.employeeId),
     );
 
-    const folgas = employeeStats.flatMap(
+    const folgas = selectedEmployeesRecords.filter(
       (r) => r.type === "folga" && newRecord.employeeIds.includes(r.employeeId),
     );
 
@@ -236,10 +249,15 @@ export const FolgasPage = () => {
     return validOptions.sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
     );
-  }, [employeeStats, newRecord.employeeIds]);
+  }, [selectedEmployeesRecords, newRecord.employeeIds]);
 
   const totalBalance = employeeStats.reduce(
     (acc, curr) => acc + curr.balance,
+    0,
+  );
+
+  const totalCredits = employeeStats.reduce(
+    (acc, curr) => acc + curr.earned,
     0,
   );
 
@@ -252,7 +270,7 @@ export const FolgasPage = () => {
   const handleAddRecord = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newRecord.employeeIds.length === 0) {
-      alert("Por favor, selecione pelo menos um colaborador.");
+      toast.error("Por favor, selecione pelo menos um colaborador.");
       return;
     }
     if (!newRecord.date) return;
@@ -270,10 +288,11 @@ export const FolgasPage = () => {
       });
       await loadApiData();
       closeModal();
+      toast.success("Lançamentos efetuados com sucesso!");
     } catch (error) {
       // O fallback local para adição é complexo com paginação,
       // idealmente, mostrar um erro ao utilizador.
-      alert("Falha ao adicionar registo. Verifique a sua ligação.");
+      toast.error("Falha ao adicionar registo. Verifique a sua ligação.");
       closeModal();
       setIsLoading(false);
     }
@@ -465,36 +484,43 @@ export const FolgasPage = () => {
       )}
 
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-        <div>
-          <h2 className="text-2xl font-black tracking-tight text-slate-800">
-            Controlo de Folgas
-          </h2>
-          <p className="text-slate-500 font-medium">
-            Gestão de compensação da equipa
-          </p>
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl shadow-sm border border-amber-100 hidden sm:flex">
+            <Calendar size={28} />
+          </div>
+          <div>
+            <h2 className="text-3xl font-black tracking-tight text-slate-800">
+              Controlo de Folgas
+            </h2>
+            <p className="text-slate-500 font-medium mt-1 text-sm">
+              Gestão de saldos e compensação da equipa
+            </p>
+          </div>
         </div>
-        <button
+        <Button
           onClick={() => setIsModalOpen(true)}
-          className="w-full md:w-auto bg-slate-900 hover:bg-black text-white px-5 py-3 rounded-2xl flex items-center justify-center gap-2 transition-all transform active:scale-95 shadow-xl shadow-slate-200"
+          className="w-full md:w-auto h-12 px-5 rounded-2xl flex items-center justify-center gap-2 transition-all transform active:scale-95 shadow-xl shadow-slate-200 bg-slate-900 text-white hover:bg-slate-800"
         >
           <Plus size={20} /> Lançamento em Lote
-        </button>
+        </Button>
       </header>
 
       {!selectedEmployeeId && (
         <nav className="flex gap-2 mb-6 bg-white p-1.5 rounded-2xl shadow-sm border border-slate-100 w-fit">
-          <button
+          <Button
+            variant="ghost"
             onClick={() => setActiveTab("dashboard")}
-            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === "dashboard" ? "bg-slate-900 text-white shadow-md" : "text-slate-500 hover:bg-slate-50"}`}
+            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all h-auto ${activeTab === "dashboard" ? "bg-slate-900 text-white shadow-md hover:bg-slate-800" : "text-slate-500 hover:bg-slate-50"}`}
           >
             Resumo
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
             onClick={() => setActiveTab("history")}
-            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === "history" ? "bg-slate-900 text-white shadow-md" : "text-slate-500 hover:bg-slate-50"}`}
+            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all h-auto ${activeTab === "history" ? "bg-slate-900 text-white shadow-md hover:bg-slate-800" : "text-slate-500 hover:bg-slate-50"}`}
           >
             Histórico
-          </button>
+          </Button>
         </nav>
       )}
 
@@ -509,7 +535,7 @@ export const FolgasPage = () => {
         ) : activeTab === "dashboard" ? (
           <Dashboard
             employeesLength={employeeStats.length}
-            totalCredits={records.filter((r) => r.type === "trabalho").length}
+            totalCredits={totalCredits}
             totalBalance={totalBalance}
             employeeStats={employeeStats}
             isLoading={isLoading}

@@ -12,8 +12,21 @@ import {
   Clock,
   Briefcase,
   X,
+  Plus,
+  User,
 } from "lucide-react";
 import { EmployeesService } from "../../services/employees.service";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { toast } from "sonner";
 
 /**
  * ============================================================================
@@ -59,7 +72,6 @@ export const SaidasPage = () => {
   // Campos de formulário
   const [motivo, setMotivo] = useState("");
   const [dataSelecionada, setDataSelecionada] = useState(getISODate());
-  const [feedback, setFeedback] = useState("");
 
   // Campos específicos
   const [tipoData, setTipoData] = useState("saida");
@@ -92,9 +104,9 @@ export const SaidasPage = () => {
 
     const fetchEmployees = async () => {
       try {
-        const data = await EmployeesService.findAll();
+        const response = await EmployeesService.findAll(1, 1000);
         // Filtramos apenas os ativos para o formulário
-        setEmployees(data.filter((e: any) => e.active !== false));
+        setEmployees(response.data.filter((e: any) => e.active !== false));
       } catch (error) {
         console.error("Erro ao buscar colaboradores:", error);
       } finally {
@@ -122,18 +134,14 @@ export const SaidasPage = () => {
 
   const handleAddRegistro = () => {
     if (colaboradoresSelecionados.length === 0 || !motivo.trim()) {
-      showFeedback(
+      toast.error(
         "Erro: Selecione pelo menos um colaborador e preencha o motivo.",
-        true,
       );
       return;
     }
 
     if (tipoFormulario === "uber" && !destino.trim()) {
-      showFeedback(
-        "Erro: Preencha o destino para a solicitação de Uber.",
-        true,
-      );
+      toast.error("Erro: Preencha o destino para a solicitação de Uber.");
       return;
     }
 
@@ -165,9 +173,8 @@ export const SaidasPage = () => {
     setMotivo("");
     setDestino("");
     setColaboradoresSelecionados([]);
-    showFeedback(
+    toast.success(
       `${novosRegistros.length} colaborador(es) adicionado(s) à lista!`,
-      false,
     );
   };
 
@@ -178,13 +185,8 @@ export const SaidasPage = () => {
   const handleLimparRegistros = () => {
     if (window.confirm("Tem a certeza que deseja limpar toda a lista?")) {
       setRegistros([]);
-      showFeedback("Lista de registros limpa.", false);
+      toast.success("Lista de registros limpa.");
     }
-  };
-
-  const showFeedback = (msg: string, isError: boolean) => {
-    setFeedback(msg);
-    setTimeout(() => setFeedback(""), 5000);
   };
 
   // === LÓGICA DE GERAÇÃO DE PDF (Mantida a sua lógica de VFS) ===
@@ -641,9 +643,9 @@ export const SaidasPage = () => {
       if (tipoFormulario === "saida")
         await gerarPDFSaida(registrosParaGerar, assets);
       else await gerarPDFUber(registrosParaGerar, assets);
-      showFeedback("PDF gerado com sucesso!", false);
+      toast.success("PDF gerado com sucesso!");
     } catch (error) {
-      showFeedback("Erro ao gerar PDF.", true);
+      toast.error("Erro ao gerar PDF.");
     } finally {
       setIsLoading(false);
     }
@@ -698,9 +700,9 @@ export const SaidasPage = () => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      showFeedback("Ficheiro Excel gerado com sucesso!", false);
+      toast.success("Ficheiro Excel gerado com sucesso!");
     } catch (error) {
-      showFeedback("Erro ao gerar Excel.", true);
+      toast.error("Erro ao gerar Excel.");
     }
   };
 
@@ -724,46 +726,46 @@ export const SaidasPage = () => {
 
       {/* HEADER */}
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-        <div>
-          <h2 className="text-2xl font-black tracking-tight text-slate-800">
-            Gestão de Saídas
-          </h2>
-          <p className="text-slate-500 font-medium">
-            Controlo de autorizações e deslocações
-          </p>
-        </div>
-        {feedback && (
-          <div
-            className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 animate-in fade-in slide-in-from-top-2 ${feedback.includes("Erro") ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}
-          >
-            <AlertCircle size={16} /> {feedback}
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl shadow-sm border border-blue-100 hidden sm:flex">
+            <Car size={28} />
           </div>
-        )}
+          <div>
+            <h2 className="text-3xl font-black text-slate-800 tracking-tight">
+              Gestão de Saídas
+            </h2>
+            <p className="text-slate-500 font-medium mt-1 text-sm">
+              Controlo de autorizações e deslocações da equipa
+            </p>
+          </div>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* COLUNA ESQUERDA: FORMULÁRIO */}
         <div className="lg:col-span-7 space-y-6">
-          <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 md:p-8">
+          <Card className="rounded-3xl shadow-sm border-slate-100 p-6 md:p-8">
             <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
-              <FileText size={20} className="text-slate-400" />
-              1. Selecione o Tipo de Formulário
+              <FileText size={22} className="text-slate-400" />
+              1. Tipo de Solicitação
             </h3>
 
             {/* Type Selector */}
-            <div className="flex p-1 bg-slate-100 rounded-xl mb-6">
-              <button
-                className={`flex-1 py-3 text-sm font-bold rounded-lg transition-all ${tipoFormulario === "saida" ? "bg-white text-emerald-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+            <div className="flex p-1.5 bg-slate-100 rounded-2xl mb-8">
+              <Button
+                variant="ghost"
+                className={`flex-1 h-auto py-3 text-sm font-bold rounded-xl transition-all ${tipoFormulario === "saida" ? "bg-white text-emerald-600 shadow-sm ring-1 ring-slate-200/50 hover:bg-white hover:text-emerald-700" : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"}`}
                 onClick={() => setTipoFormulario("saida")}
               >
-                Autorização de Saída
-              </button>
-              <button
-                className={`flex-1 py-3 text-sm font-bold rounded-lg transition-all ${tipoFormulario === "uber" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                <Clock size={18} className="mr-2" /> Autorização de Saída
+              </Button>
+              <Button
+                variant="ghost"
+                className={`flex-1 h-auto py-3 text-sm font-bold rounded-xl transition-all ${tipoFormulario === "uber" ? "bg-white text-blue-600 shadow-sm ring-1 ring-slate-200/50 hover:bg-white hover:text-blue-700" : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"}`}
                 onClick={() => setTipoFormulario("uber")}
               >
-                Solicitação de Uber
-              </button>
+                <Car size={18} className="mr-2" /> Solicitação de Uber
+              </Button>
             </div>
 
             {/* Colaboradores Checklist */}
@@ -778,22 +780,22 @@ export const SaidasPage = () => {
                   className="absolute left-3 top-3 text-slate-400"
                   size={16}
                 />
-                <input
+                <Input
                   type="text"
                   placeholder="Buscar pelo nome..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
+                  className="w-full bg-slate-50 border-slate-200 rounded-xl pl-10 h-11 text-sm"
                 />
               </div>
-              <div className="h-48 overflow-y-auto border border-slate-200 rounded-xl bg-slate-50 p-2 space-y-1 custom-scrollbar">
+              <div className="h-56 overflow-y-auto border border-slate-200 rounded-xl bg-slate-50 p-2 space-y-1 custom-scrollbar">
                 {filteredEmployees.map((e) => (
                   <label
                     key={e.id}
-                    className={`flex items-center space-x-3 p-2 rounded-lg cursor-pointer transition-colors ${colaboradoresSelecionados.includes(e.id) ? "bg-emerald-50 border border-emerald-200" : "hover:bg-white border border-transparent"}`}
+                    className={`flex items-center space-x-3 p-2.5 rounded-xl cursor-pointer transition-all duration-200 ${colaboradoresSelecionados.includes(e.id) ? "bg-emerald-50 border-emerald-200 shadow-sm" : "hover:bg-slate-200/50 border-transparent"}`}
                   >
                     <div
-                      className={`flex items-center justify-center w-5 h-5 rounded border ${colaboradoresSelecionados.includes(e.id) ? "bg-emerald-500 border-emerald-500 text-white" : "border-slate-300 bg-white"}`}
+                      className={`flex items-center justify-center w-5 h-5 rounded border shrink-0 ${colaboradoresSelecionados.includes(e.id) ? "bg-emerald-500 border-emerald-500 text-white" : "border-slate-300 bg-white"}`}
                     >
                       {colaboradoresSelecionados.includes(e.id) && (
                         <CheckSquare
@@ -802,12 +804,19 @@ export const SaidasPage = () => {
                         />
                       )}
                     </div>
-                    <span className="text-sm font-medium text-slate-700 select-none">
-                      {e.name}{" "}
-                      <span className="text-slate-400 text-xs ml-1 font-mono">
-                        ({e.enrollment || "S/M"})
+                    <div
+                      className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${colaboradoresSelecionados.includes(e.id) ? "bg-emerald-200 text-emerald-700" : "bg-slate-200 text-slate-500"}`}
+                    >
+                      {e.name.charAt(0)}
+                    </div>
+                    <div className="flex flex-col select-none">
+                      <span className="text-sm font-bold text-slate-700 leading-tight">
+                        {e.name}
                       </span>
-                    </span>
+                      <span className="text-xs text-slate-400 font-medium leading-tight mt-0.5 flex items-center gap-1">
+                        <Briefcase size={10} /> {e.enrollment || "S/M"}
+                      </span>
+                    </div>
                     <input
                       type="checkbox"
                       className="hidden"
@@ -825,9 +834,9 @@ export const SaidasPage = () => {
                 <label className="block text-sm font-bold text-slate-700 mb-1">
                   Data da Ocorrência
                 </label>
-                <input
+                <Input
                   type="date"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none h-[46px]"
+                  className="w-full bg-slate-50 border-slate-200 rounded-xl h-12 px-4"
                   value={dataSelecionada}
                   onChange={(e) => setDataSelecionada(e.target.value)}
                 />
@@ -838,9 +847,9 @@ export const SaidasPage = () => {
                   <label className="block text-sm font-bold text-slate-700 mb-1">
                     Preencher data em:
                   </label>
-                  <div className="flex bg-slate-50 border border-slate-200 rounded-xl p-1 h-[46px]">
+                  <div className="flex bg-slate-50 border border-slate-200 rounded-xl p-1 h-12">
                     <label
-                      className={`flex-1 flex items-center justify-center cursor-pointer rounded-lg text-sm font-bold transition-all ${tipoData === "saida" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500"}`}
+                      className={`flex-1 flex items-center justify-center cursor-pointer rounded-lg text-sm font-bold transition-all ${tipoData === "saida" ? "bg-white text-slate-800 shadow-sm ring-1 ring-slate-200/50" : "text-slate-500 hover:text-slate-700"}`}
                     >
                       <input
                         type="radio"
@@ -852,7 +861,7 @@ export const SaidasPage = () => {
                       Saída
                     </label>
                     <label
-                      className={`flex-1 flex items-center justify-center cursor-pointer rounded-lg text-sm font-bold transition-all ${tipoData === "entrada" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500"}`}
+                      className={`flex-1 flex items-center justify-center cursor-pointer rounded-lg text-sm font-bold transition-all ${tipoData === "entrada" ? "bg-white text-slate-800 shadow-sm ring-1 ring-slate-200/50" : "text-slate-500 hover:text-slate-700"}`}
                     >
                       <input
                         type="radio"
@@ -871,17 +880,19 @@ export const SaidasPage = () => {
                   <label className="block text-sm font-bold text-slate-700 mb-1">
                     Destino (Geral)
                   </label>
-                  <select
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none h-[46px]"
-                    value={destino}
-                    onChange={(e) => setDestino(e.target.value)}
-                  >
-                    <option value="">Selecione...</option>
-                    <option value="_">VAZIO</option>
-                    <option value="ITAM X CASA">ITAM X CASA</option>
-                    <option value="CASA X ITAM">CASA X ITAM</option>
-                    <option value="CASA X AEGEA RNA">CASA X AEGEA RNA</option>
-                  </select>
+                  <Select value={destino} onValueChange={setDestino}>
+                    <SelectTrigger className="w-full bg-slate-50 border-slate-200 rounded-xl h-12 px-4">
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="_">VAZIO</SelectItem>
+                      <SelectItem value="ITAM X CASA">ITAM X CASA</SelectItem>
+                      <SelectItem value="CASA X ITAM">CASA X ITAM</SelectItem>
+                      <SelectItem value="CASA X AEGEA RNA">
+                        CASA X AEGEA RNA
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               )}
             </div>
@@ -907,100 +918,110 @@ export const SaidasPage = () => {
               </label>
             </div>
 
-            <div className="mb-8">
+            <div className="mb-8 p-4 bg-slate-50 rounded-2xl border border-slate-100">
               <label className="block text-sm font-bold text-slate-700 mb-1">
                 Motivo (Aplicado a todos os selecionados)
               </label>
-              <input
+              <Input
                 type="text"
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                className="w-full bg-slate-50 border-slate-200 rounded-xl h-12 px-4 uppercase"
                 value={motivo}
                 onChange={(e) => setMotivo(e.target.value.toLocaleUpperCase())}
                 placeholder="Ex: Consulta médica / Serviço Externo"
               />
             </div>
 
-            <button
+            <Button
               onClick={handleAddRegistro}
-              className={`w-full text-white font-bold py-4 rounded-2xl transition-all shadow-lg flex items-center justify-center gap-2 ${tipoFormulario === "saida" ? "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20" : "bg-blue-600 hover:bg-blue-700 shadow-blue-600/20"}`}
+              className={`w-full h-14 text-white font-bold rounded-2xl shadow-lg flex items-center justify-center gap-2 ${tipoFormulario === "saida" ? "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20" : "bg-blue-600 hover:bg-blue-700 shadow-blue-600/20"}`}
             >
-              Adicionar à Lista de Impressão
-            </button>
-          </div>
+              <Plus size={20} /> Adicionar à Lista de Impressão
+            </Button>
+          </Card>
         </div>
 
         {/* COLUNA DIREITA: LISTA E ACÇÕES */}
         <div className="lg:col-span-5 space-y-6">
           {/* Caixa de Ações de Exportação */}
-          <div className="bg-slate-900 text-white rounded-3xl shadow-xl p-6 md:p-8 relative overflow-hidden">
+          <div className="bg-slate-900 text-white rounded-3xl shadow-xl p-6 md:p-8 relative overflow-hidden flex flex-col justify-center">
             <div className="absolute top-0 right-0 -mt-4 -mr-4 w-32 h-32 bg-white opacity-5 rounded-full blur-2xl"></div>
 
-            <h3 className="text-lg font-bold mb-2 flex items-center gap-2 relative z-10">
+            <h3 className="text-xl font-black mb-2 flex items-center gap-2 relative z-10">
               <Download size={20} className="text-emerald-400" />
               3. Gerar Documentos
             </h3>
-            <p className="text-slate-400 text-sm mb-6 relative z-10">
-              Gere os ficheiros com base na lista de{" "}
+            <p className="text-slate-400 font-medium text-sm mb-8 relative z-10">
+              Gere os ficheiros finalizados em PDF ou Excel com base na lista de{" "}
               {tipoFormulario === "saida" ? "Saída" : "Uber"} configurada
               abaixo.
             </p>
 
             <div className="flex flex-col gap-3 relative z-10">
-              <button
+              <Button
                 onClick={handleGerarPDF}
                 disabled={registrosFiltrados.length === 0 || !libsLoaded}
-                className="w-full bg-rose-500 hover:bg-rose-600 disabled:bg-slate-800 disabled:text-slate-500 text-white font-bold py-4 rounded-2xl transition-all flex items-center justify-center gap-2"
+                className="w-full h-14 bg-rose-500 hover:bg-rose-600 disabled:bg-slate-800 disabled:text-slate-500 text-white font-bold rounded-2xl flex items-center justify-center gap-2"
               >
                 <FileText size={20} /> Baixar PDF Prontos
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={gerarExcel}
                 disabled={registrosFiltrados.length === 0 || !libsLoaded}
-                className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-800 disabled:text-slate-500 text-white font-bold py-4 rounded-2xl transition-all flex items-center justify-center gap-2"
+                className="w-full h-14 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-800 disabled:text-slate-500 text-white font-bold rounded-2xl flex items-center justify-center gap-2"
               >
                 <Download size={20} /> Exportar Planilha Excel
-              </button>
+              </Button>
             </div>
           </div>
 
           {/* Lista de Registros */}
-          <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 md:p-8 flex flex-col h-[500px]">
+          <Card className="rounded-3xl shadow-sm border-slate-100 p-6 md:p-8 flex flex-col h-[500px]">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 tracking-tight">
                 <Briefcase size={20} className="text-slate-400" />
                 2. Fila de Impressão
               </h3>
               {registros.length > 0 && (
-                <button
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={handleLimparRegistros}
-                  className="text-rose-500 hover:bg-rose-50 p-2 rounded-lg transition-colors"
+                  className="text-rose-500 hover:bg-rose-50 hover:text-rose-600 rounded-lg h-10 w-10"
                   title="Limpar Lista"
                 >
                   <Trash2 size={18} />
-                </button>
+                </Button>
               )}
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-3 custom-scrollbar pr-2">
               {registros.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-slate-400">
-                  <FileText size={48} className="mb-4 opacity-20" />
-                  <p className="text-sm font-medium">
-                    Nenhum registo pendente.
+                <div className="h-full flex flex-col items-center justify-center text-slate-400 bg-slate-50/50 rounded-2xl border-2 border-dashed border-slate-200">
+                  <div className="bg-white p-4 rounded-full shadow-sm mb-4">
+                    <FileText size={32} className="text-slate-300" />
+                  </div>
+                  <p className="text-sm font-bold text-slate-600">Fila Vazia</p>
+                  <p className="text-xs text-slate-400 mt-1 text-center max-w-[200px]">
+                    Adicione colaboradores ao lado para gerar documentos.
                   </p>
                 </div>
               ) : (
                 registros.map((r) => (
                   <div
                     key={r.id}
-                    className="p-4 bg-slate-50 border border-slate-100 rounded-xl relative group"
+                    className="p-4 pl-5 bg-white border border-slate-200 rounded-2xl relative group shadow-sm hover:shadow-md transition-all overflow-hidden"
                   >
-                    <button
+                    <div
+                      className={`absolute left-0 top-0 bottom-0 w-1.5 ${r.tipoFormulario === "saida" ? "bg-emerald-400" : "bg-blue-400"}`}
+                    ></div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       onClick={() => handleRemoverRegistro(r.id)}
-                      className="absolute top-3 right-3 text-slate-300 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute top-2 right-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8"
                     >
                       <X size={16} />
-                    </button>
+                    </Button>
                     <div className="flex items-start gap-2 mb-2">
                       <span
                         className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider ${r.tipoFormulario === "saida" ? "bg-emerald-100 text-emerald-700" : "bg-blue-100 text-blue-700"}`}
@@ -1032,7 +1053,7 @@ export const SaidasPage = () => {
                 ))
               )}
             </div>
-          </div>
+          </Card>
         </div>
       </div>
     </div>
