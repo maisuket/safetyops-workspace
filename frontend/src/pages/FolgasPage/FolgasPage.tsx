@@ -40,6 +40,15 @@ export interface EmployeeStat extends Employee {
   balance: number;
 }
 
+// Helper para obter a data local no formato YYYY-MM-DD com segurança
+// (evita a falha de fuso horário causada pelo .toISOString() à noite)
+const getLocalDateString = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 export const FolgasPage = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [records, setRecords] = useState<FolgaRecord[]>([]);
@@ -60,25 +69,28 @@ export const FolgasPage = () => {
     FolgaRecord[]
   >([]);
 
-  const isFetchingOrSeeding = useRef<boolean>(false);
+  // Ref para prevenir inserções duplicadas apenas durante a sementeira (seeding) inicial da BD
+  const isSeeding = useRef<boolean>(false);
 
   const [newRecord, setNewRecord] = useState({
     employeeIds: [] as string[],
     type: "trabalho" as "trabalho" | "folga",
-    date: new Date().toISOString().split("T")[0],
+    date: getLocalDateString(),
     local: "",
     description: "",
     refDate: "",
   });
 
   const [reportPeriod, setReportPeriod] = useState({
-    start: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
-      .toISOString()
-      .split("T")[0],
-    end: new Date().toISOString().split("T")[0],
+    start: getLocalDateString(
+      new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+    ),
+    end: getLocalDateString(),
   });
 
   useEffect(() => {
+    let isMounted = true;
+
     const loadScript = (src: string) => {
       return new Promise((resolve) => {
         const script = document.createElement("script");
@@ -99,16 +111,18 @@ export const FolgasPage = () => {
       const autotable = await loadScript(
         "https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js",
       );
-      if (xlsx && jspdf && autotable) setLibsLoaded(true);
+      if (isMounted && xlsx && jspdf && autotable) setLibsLoaded(true);
     };
 
     initLibs();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  const loadApiData = async () => {
-    if (isFetchingOrSeeding.current) return;
-    isFetchingOrSeeding.current = true;
-
+  // Recebemos uma função opcional isMounted para verificar se o estado ainda deve ser atualizado
+  const loadApiData = async (isMounted?: () => boolean) => {
     try {
       setIsLoading(true);
       // Busca os stats e os colaboradores em paralelo
@@ -120,7 +134,12 @@ export const FolgasPage = () => {
       let empsData = empsResponse.data;
 
       // Seeding inicial (lógica mantida)
-      if (empsData.length === 0 && INITIAL_EMPLOYEES?.length > 0) {
+      if (
+        empsData.length === 0 &&
+        INITIAL_EMPLOYEES?.length > 0 &&
+        !isSeeding.current
+      ) {
+        isSeeding.current = true;
         console.log("A semear base de dados com técnicos iniciais...");
         for (let i = 0; i < INITIAL_EMPLOYEES.length; i++) {
           await EmployeesService.create(INITIAL_EMPLOYEES[i] as any);
@@ -131,11 +150,15 @@ export const FolgasPage = () => {
         ]);
         statsData = newStats;
         empsData = newEmps.data;
+        isSeeding.current = false;
       }
 
       // Busca os registos paginados
       const { data: recsData, total } =
         await RecordsService.findAll(currentPage);
+
+      // Se a página mudou ou o componente desmontou antes do fim da requisição, descarta os dados
+      if (isMounted && !isMounted()) return;
 
       setEmployees(empsData);
       setEmployeeStats(statsData);
@@ -163,21 +186,21 @@ export const FolgasPage = () => {
       }
     } finally {
       setIsLoading(false);
-      isFetchingOrSeeding.current = false;
     }
   };
 
   useEffect(() => {
-    loadApiData();
+    let mounted = true;
+    loadApiData(() => mounted);
+    return () => {
+      mounted = false;
+    };
   }, [currentPage]); // Recarrega os dados quando a página muda
-
-  useEffect(() => {
-    // Lógica de fallback local removida para simplificar,
-    // pois os dados agora são paginados e não representam o todo.
-  }, [records]);
 
   // Busca o histórico detalhado dos colaboradores sempre que são selecionados no Modal
   useEffect(() => {
+    let isMounted = true;
+
     const fetchSelectedRecords = async () => {
       if (newRecord.employeeIds.length === 0) {
         setSelectedEmployeesRecords([]);
@@ -188,62 +211,83 @@ export const FolgasPage = () => {
           RecordsService.findByEmployee(id),
         );
         const results = await Promise.all(promises);
-        // @ts-ignore
-        setSelectedEmployeesRecords(results.flat());
+        if (isMounted) {
+          // @ts-ignore
+          setSelectedEmployeesRecords(results.flat());
+        }
       } catch (error) {
         console.error("Erro ao buscar histórico pendente:", error);
       }
     };
     fetchSelectedRecords();
+
+    return () => {
+      isMounted = false;
+    };
   }, [newRecord.employeeIds]);
 
   // =========================================================================================
   // LÓGICA INTELIGENTE DE CÁLCULO DE TRABALHOS PENDENTES (Não requer alterações na DB!)
   // =========================================================================================
   const pastWorksOptions = useMemo(() => {
-    if (newRecord.employeeIds.length === 0) return [];
+    const selectedIds = newRecord.employeeIds;
+    if (selectedIds.length === 0) return [];
 
-    const works = selectedEmployeesRecords.filter(
-      (r) =>
-        r.type === "trabalho" && newRecord.employeeIds.includes(r.employeeId),
+    const selectedIdsSet = new Set(selectedIds);
+
+    // 1. Agrupar referências de folgas por colaborador (O(N)) para evitar iterações repetidas
+    const folgasByEmployee = new Map<string, string[]>();
+    const relevantRecords = selectedEmployeesRecords.filter((r) =>
+      selectedIdsSet.has(r.employeeId),
     );
 
-    const folgas = selectedEmployeesRecords.filter(
-      (r) => r.type === "folga" && newRecord.employeeIds.includes(r.employeeId),
-    );
+    relevantRecords.forEach((r) => {
+      if (r.type === "folga" && r.refDate) {
+        if (!folgasByEmployee.has(r.employeeId))
+          folgasByEmployee.set(r.employeeId, []);
+        folgasByEmployee.get(r.employeeId)!.push(r.refDate);
+      }
+    });
 
-    const unique = new Map();
+    const uniqueWorks = new Map();
 
-    works.forEach((w) => {
-      const dateString = new Date(w.date).toLocaleDateString("pt-BR", {
-        timeZone: "UTC",
-      });
+    relevantRecords.forEach((w) => {
+      if (w.type !== "trabalho") return;
+
+      // 2. Extração manual de datas UTC (muito mais rápido que toLocaleDateString no loop)
+      const d = new Date(w.date);
+      const day = String(d.getUTCDate()).padStart(2, "0");
+      const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+      const year = d.getUTCFullYear();
+      const dateString = `${day}/${month}/${year}`;
+
       const refString = `${w.local || "Sem local"} - Folga remunerada referente ao dia ${dateString}`;
 
-      // COMPATIBILIDADE COM DADOS ANTIGOS: Verifica a string exata ou se inclui apenas a data
-      const isUsedByThisEmployee = folgas.some((f) => {
-        if (!f.refDate) return false;
-        return f.refDate === refString || f.refDate.includes(dateString);
-      });
+      // 3. 🚨 CORREÇÃO DE BUG: Buscar apenas nas folgas DESTE colaborador,
+      // não nas de todos os selecionados simultaneamente.
+      const employeeFolgasRefs = folgasByEmployee.get(w.employeeId) || [];
+      const isUsedByThisEmployee = employeeFolgasRefs.some(
+        (ref) => ref === refString || ref.includes(dateString),
+      );
 
       if (!isUsedByThisEmployee) {
-        if (!unique.has(refString)) {
-          unique.set(refString, {
+        if (!uniqueWorks.has(refString)) {
+          uniqueWorks.set(refString, {
             date: w.date,
             local: w.local,
             description: w.description,
             refString,
-            availableFor: [w.employeeId], // Guarda quem tem este dia pendente
+            availableFor: new Set([w.employeeId]), // Usar Set para lookup em O(1) e prevenir duplicados
           });
         } else {
-          unique.get(refString).availableFor.push(w.employeeId);
+          uniqueWorks.get(refString).availableFor.add(w.employeeId);
         }
       }
     });
 
     // Filtra para garantir que a opção só aparece se TODOS os selecionados tiverem esse dia pendente
-    const validOptions = Array.from(unique.values()).filter((opt) =>
-      newRecord.employeeIds.every((id) => opt.availableFor.includes(id)),
+    const validOptions = Array.from(uniqueWorks.values()).filter(
+      (opt) => opt.availableFor.size === selectedIds.length,
     );
 
     return validOptions.sort(
@@ -331,7 +375,7 @@ export const FolgasPage = () => {
     setNewRecord({
       employeeIds: [],
       type: "trabalho",
-      date: new Date().toISOString().split("T")[0],
+      date: getLocalDateString(),
       local: "",
       description: "",
       refDate: "",
@@ -397,7 +441,7 @@ export const FolgasPage = () => {
     );
   };
 
-  const generateFolgasReport = (e: React.FormEvent) => {
+  const generateFolgasReport = async (e: React.FormEvent) => {
     e.preventDefault();
     // @ts-ignore
     if (!window.jspdf) return;
@@ -419,55 +463,66 @@ export const FolgasPage = () => {
     doc.text(`Periodo: ${startDateStr} a ${endDateStr}`, 14, 22);
     doc.text(`Gerado em: ${new Date().toLocaleString()}`, 14, 27);
 
-    const start = new Date(reportPeriod.start);
-    const end = new Date(reportPeriod.end);
+    // 🔥 Correção 1: Ajuste de Fuso Horário (Timezone) forçando início e fim em UTC
+    const start = new Date(`${reportPeriod.start}T00:00:00.000Z`);
+    const end = new Date(`${reportPeriod.end}T23:59:59.999Z`);
 
-    // 🔥 Ajusta para pegar o dia inteiro
-    end.setHours(23, 59, 59, 999);
+    try {
+      // 🔥 Correção 2: Resolver a Paginação
+      // A variável 'records' tem apenas a página atual. Precisamos de todos os dados do período.
+      // Vamos buscar um limite alto usando o serviço existente (ignorando paginação do dashboard)
+      const { data: allRecords } = await RecordsService.findAll(1, 10000);
 
-    const filteredFolgas = records
-      .filter((r) => {
-        if (r.type !== "folga") return false;
+      const filteredFolgas = allRecords
+        .filter((r: FolgaRecord) => {
+          if (r.type !== "folga") return false;
 
-        const recordDate = new Date(r.date);
+          const recordDate = new Date(r.date);
 
-        return recordDate >= start && recordDate <= end;
-      })
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+          return recordDate >= start && recordDate <= end;
+        })
+        .sort(
+          (a: FolgaRecord, b: FolgaRecord) =>
+            new Date(a.date).getTime() - new Date(b.date).getTime(),
+        );
 
-    if (filteredFolgas.length === 0) {
-      alert("Nenhuma folga encontrada para o período selecionado.");
-      return;
-    }
+      if (filteredFolgas.length === 0) {
+        alert("Nenhuma folga encontrada para o período selecionado.");
+        return;
+      }
 
-    const tableColumn = [
-      "Matrícula",
-      "Colaborador",
-      "Data da Folga",
-      "Referente ao Serviço/Domingo",
-    ];
-    const tableRows = filteredFolgas.map((f) => {
-      const emp = employees.find((e) => e.id === f.employeeId);
-      return [
-        emp ? emp.enrollment || "N/A" : "N/A",
-        emp ? emp.name : "Desconhecido",
-        new Date(f.date).toLocaleDateString("pt-BR", { timeZone: "UTC" }),
-        f.refDate || "Não informado",
+      const tableColumn = [
+        "Matrícula",
+        "Colaborador",
+        "Data da Folga",
+        "Referente ao Serviço/Domingo",
       ];
-    });
+      const tableRows = filteredFolgas.map((f) => {
+        const emp = employees.find((e) => e.id === f.employeeId);
+        return [
+          emp ? emp.enrollment || "N/A" : "N/A",
+          emp ? emp.name : "Desconhecido",
+          new Date(f.date).toLocaleDateString("pt-BR", { timeZone: "UTC" }),
+          f.refDate || "Não informado",
+        ];
+      });
 
-    doc.autoTable({
-      head: [tableColumn],
-      body: tableRows,
-      startY: 35,
-      theme: "grid",
-      headStyles: { fillColor: [245, 158, 11] },
-    });
+      doc.autoTable({
+        head: [tableColumn],
+        body: tableRows,
+        startY: 35,
+        theme: "grid",
+        headStyles: { fillColor: [245, 158, 11] },
+      });
 
-    const safeStart = startDateStr.replace(/\//g, "-");
-    const safeEnd = endDateStr.replace(/\//g, "-");
-    doc.save(`ITAM_Folgas_${safeStart}_ate_${safeEnd}.pdf`);
-    setIsReportModalOpen(false);
+      const safeStart = startDateStr.replace(/\//g, "-");
+      const safeEnd = endDateStr.replace(/\//g, "-");
+      doc.save(`ITAM_Folgas_${safeStart}_ate_${safeEnd}.pdf`);
+      setIsReportModalOpen(false);
+    } catch (error) {
+      console.error("Erro ao gerar relatório de folgas:", error);
+      alert("Ocorreu um erro ao buscar os dados da API para o relatório.");
+    }
   };
 
   return (
