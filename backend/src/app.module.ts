@@ -5,10 +5,12 @@ import { PrismaModule } from './database/prisma.module';
 import { RecordsModule } from './records/records.module';
 import { EmployeesModule } from './employees/employees.module';
 import { DocumentsModule } from './documents/documents.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
-    PrismaModule, // Como é Global, só precisa de ser importado aqui!
+    PrismaModule,
+    AuthModule,
     RecordsModule,
     EmployeesModule,
     DocumentsModule,

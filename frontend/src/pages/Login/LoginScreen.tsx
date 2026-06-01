@@ -1,22 +1,41 @@
 import { useState } from "react";
-
-import { Hexagon, Lock, User } from "lucide-react";
+import { Hexagon, Lock, User, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 
-export const LoginScreen = ({ onLogin }) => {
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+
+export const LoginScreen = ({ onLogin }: { onLogin: (token: string) => void }) => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (username === "admin" && password === "123") {
-      onLogin();
-    } else {
-      setError("Credenciais inválidas. Tente novamente.");
-      setPassword("");
+    setError("");
+    setIsLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+
+      if (!response.ok) {
+        setError("Credenciais inválidas. Tente novamente.");
+        setPassword("");
+        return;
+      }
+
+      const { access_token } = await response.json();
+      onLogin(access_token);
+    } catch {
+      setError("Não foi possível conectar ao servidor. Verifique a sua ligação.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -35,7 +54,7 @@ export const LoginScreen = ({ onLogin }) => {
 
         <form onSubmit={handleLogin} className="p-8 space-y-6">
           {error && (
-            <div className="bg-rose-50 text-rose-600 text-sm font-medium p-3 rounded-xl border border-rose-100 text-center animate-pulse">
+            <div className="bg-rose-50 text-rose-600 text-sm font-medium p-3 rounded-xl border border-rose-100 text-center">
               {error}
             </div>
           )}
@@ -45,17 +64,15 @@ export const LoginScreen = ({ onLogin }) => {
                 Usuário
               </label>
               <div className="relative">
-                <User
-                  size={18}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                />
+                <User size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <Input
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="pl-10 h-12 rounded-xl bg-slate-50 font-medium text-slate-700"
-                  placeholder="admin"
+                  placeholder="Usuário"
                   required
+                  autoComplete="username"
                 />
               </div>
             </div>
@@ -64,26 +81,32 @@ export const LoginScreen = ({ onLogin }) => {
                 Senha
               </label>
               <div className="relative">
-                <Lock
-                  size={18}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                />
+                <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <Input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="pl-10 h-12 rounded-xl bg-slate-50 font-medium text-slate-700"
-                  placeholder="123"
+                  placeholder="Senha"
                   required
+                  autoComplete="current-password"
                 />
               </div>
             </div>
           </div>
           <Button
             type="submit"
-            className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20"
+            disabled={isLoading}
+            className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2"
           >
-            Entrar no Sistema
+            {isLoading ? (
+              <>
+                <Loader2 size={18} className="animate-spin" />
+                Entrando...
+              </>
+            ) : (
+              "Entrar no Sistema"
+            )}
           </Button>
         </form>
       </Card>

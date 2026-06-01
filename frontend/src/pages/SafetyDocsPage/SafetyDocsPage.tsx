@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { EmployeesService } from "../../services/employees.service";
-import { INITIAL_EMPLOYEES } from "../../services/data-initial";
+import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import { useEmployees } from "../../context/EmployeesContext";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -27,6 +29,7 @@ import { DocumentsService } from "../../services/documents.service";
 import { ImportSSTModal } from "./modal/ImportSstModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PageTabs } from "@/components/ui/page-tabs";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   Dialog,
@@ -43,13 +46,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-interface Employee {
-  id: string;
-  name: string;
-  enrollment?: string;
-  role?: string;
-}
-
 interface SafetyDocument {
   id: string;
   employeeId: string;
@@ -59,7 +55,7 @@ interface SafetyDocument {
 }
 
 export const SafetyDocsPage = () => {
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const { employees } = useEmployees();
   const [documents, setDocuments] = useState<SafetyDocument[]>([]);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [searchQuery, setSearchQuery] = useState("");
@@ -73,68 +69,22 @@ export const SafetyDocsPage = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
   const [editingDocId, setEditingDocId] = useState<string | null>(null);
+  const [deleteDocId, setDeleteDocId] = useState<string | null>(null);
   const isFetching = useRef(false);
-
-  // Carregar dependências de exportação
-  const [libsLoaded, setLibsLoaded] = useState(false);
-
-  useEffect(() => {
-    const loadScript = (src: string) => {
-      return new Promise((resolve) => {
-        // Evita injetar o mesmo script múltiplas vezes
-        if (document.querySelector(`script[src="${src}"]`)) {
-          return resolve(true);
-        }
-        const script = document.createElement("script");
-        script.src = src;
-        script.onload = () => resolve(true);
-        script.onerror = () => resolve(false);
-        document.head.appendChild(script);
-      });
-    };
-
-    const initLibs = async () => {
-      const xlsx = await loadScript(
-        "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js",
-      );
-      const jspdf = await loadScript(
-        "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
-      );
-      const autotable = await loadScript(
-        "https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js",
-      );
-      if (xlsx && jspdf && autotable) setLibsLoaded(true);
-    };
-
-    initLibs();
-  }, []);
 
   const loadData = async () => {
     if (isFetching.current) return;
     isFetching.current = true;
     try {
       setIsLoading(true);
-      const [empResponse, docData] = await Promise.all([
-        EmployeesService.findAll(1, 1000).catch(() => ({ data: [], total: 0 })),
-        DocumentsService.findAll().catch(() => []),
-      ]);
-      const empData = empResponse.data || [];
-      setEmployees(
-        empData.length > 0
-          ? empData
-          : INITIAL_EMPLOYEES.map((name, i) => ({
-              id: String(i),
-              name,
-              role: "Geral",
-            })),
-      );
+      const docData = await DocumentsService.findAll().catch(() => []);
       setDocuments(
         docData.length > 0
           ? docData
           : JSON.parse(localStorage.getItem("itam_docs_mock") || "[]"),
       );
     } catch (error) {
-      console.error("Erro", error);
+      console.error("Erro ao carregar documentos", error);
     } finally {
       setIsLoading(false);
       isFetching.current = false;
@@ -172,20 +122,19 @@ export const SafetyDocsPage = () => {
     }
   };
 
-  const removeDocument = async (id: string) => {
-    if (window.confirm("Tem a certeza que deseja excluir este documento?")) {
-      try {
-        setIsLoading(true);
-        await DocumentsService.remove(id);
-        await loadData();
-        toast.success("Documento removido com sucesso!");
-      } catch (error) {
-        // Fallback
-        setDocuments(documents.filter((d) => d.id !== id));
-        toast.success("Documento removido (Modo Local)!");
-      } finally {
-        setIsLoading(false);
-      }
+  const removeDocument = async () => {
+    if (!deleteDocId) return;
+    try {
+      setIsLoading(true);
+      await DocumentsService.remove(deleteDocId);
+      await loadData();
+      toast.success("Documento removido com sucesso!");
+    } catch {
+      setDocuments(documents.filter((d) => d.id !== deleteDocId));
+      toast.success("Documento removido (Modo Local)!");
+    } finally {
+      setIsLoading(false);
+      setDeleteDocId(null);
     }
   };
 
@@ -266,73 +215,26 @@ export const SafetyDocsPage = () => {
     };
   };
 
-  // INTELIGÊNCIA ARTIFICIAL (Mantida do seu código)
   const analyzeDocument = async (file: File) => {
     if (!file) return;
     setIsAnalyzing(true);
     try {
-      const reader = new FileReader();
-      const base64Promise = new Promise<string>((resolve) => {
-        reader.onload = () => resolve((reader.result as string).split(",")[1]);
-        reader.readAsDataURL(file);
-      });
-      const cleanBase64 = await base64Promise;
-
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "";
-      if (!apiKey) throw new Error("Sem API Key");
-
-      const payload = {
-        contents: [
-          {
-            parts: [
-              {
-                text: "Extraia do documento SST: employeeName, docType, issueDate, expiryDate (YYYY-MM-DD). Retorne APENAS um JSON plano.",
-              },
-              {
-                inlineData: {
-                  mimeType: file.type || "image/png",
-                  data: cleanBase64,
-                },
-              },
-            ],
-          },
-        ],
-        generationConfig: { responseMimeType: "application/json" },
-      };
-
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        },
+      const parsed = await DocumentsService.analyzeWithAI(file);
+      const matchedEmp = employees.find((e) =>
+        e.name.toLowerCase().includes(parsed.employeeName?.toLowerCase() || ""),
       );
-      const result = await response.json();
-      const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-
-      if (text) {
-        const parsed = JSON.parse(text);
-        const matchedEmp = employees.find((e) =>
-          e.name
-            .toLowerCase()
-            .includes(parsed.employeeName?.toLowerCase() || ""),
-        );
-        setAnalysisResult({
-          ...parsed,
-          employeeId: matchedEmp?.id || "",
-          issueDate: parsed.issueDate || "",
-        });
-      }
-    } catch (error) {
+      setAnalysisResult({
+        ...parsed,
+        employeeId: matchedEmp?.id || "",
+        issueDate: parsed.issueDate || "",
+      });
+    } catch {
       toast.error("IA indisponível. Preencha os dados manualmente.");
       setAnalysisResult({
         employeeName: "",
         docType: "",
         issueDate: new Date().toISOString().split("T")[0],
-        expiryDate: new Date(
-          new Date().setFullYear(new Date().getFullYear() + 1),
-        )
+        expiryDate: new Date(new Date().setFullYear(new Date().getFullYear() + 1))
           .toISOString()
           .split("T")[0],
         employeeId: "",
@@ -407,11 +309,7 @@ export const SafetyDocsPage = () => {
     };
   };
 
-  // MELHORIA 2: Exportação
   const exportToExcel = () => {
-    // @ts-ignore
-    if (!window.XLSX) return;
-
     const data = filteredDocuments.map((doc) => {
       const emp = employees.find((e) => e.id === doc.employeeId);
       const info = getStatusInfo(doc.expiryDate);
@@ -419,72 +317,34 @@ export const SafetyDocsPage = () => {
         Matrícula: emp?.enrollment || "N/A",
         Funcionário: emp?.name || "Desconhecido",
         "Documento/Norma": doc.docType,
-        "Data Emissão": doc.issueDate
-          ? new Date(doc.issueDate).toLocaleDateString("pt-BR")
-          : "N/A",
+        "Data Emissão": doc.issueDate ? new Date(doc.issueDate).toLocaleDateString("pt-BR") : "N/A",
         "Data Vencimento": new Date(doc.expiryDate).toLocaleDateString("pt-BR"),
         Status: info.label,
       };
     });
-
-    // @ts-ignore
-    const ws = window.XLSX.utils.json_to_sheet(data);
-    // @ts-ignore
-    const wb = window.XLSX.utils.book_new();
-    // @ts-ignore
-    window.XLSX.utils.book_append_sheet(wb, ws, "Controlo SST");
-    // @ts-ignore
-    window.XLSX.writeFile(
-      wb,
-      `ITAM_SST_Status_${new Date().toLocaleDateString().replace(/\//g, "-")}.xlsx`,
-    );
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Controle SST");
+    XLSX.writeFile(wb, `ITAM_SST_Status_${new Date().toLocaleDateString().replace(/\//g, "-")}.xlsx`);
   };
 
   const exportToPDF = () => {
-    // @ts-ignore
-    if (!window.jspdf) return;
-    // @ts-ignore
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF("landscape"); // Landscape para caber mais colunas
-
-    doc.text(
-      "ITAM - Assistência Técnica - Controlo de SST (NRs e ASOs)",
-      14,
-      15,
-    );
+    const doc = new jsPDF("landscape");
+    doc.text("ITAM - Assistência Técnica - Controle de SST (NRs e ASOs)", 14, 15);
     doc.setFontSize(10);
     doc.text(`Gerado em: ${new Date().toLocaleString()}`, 14, 22);
-
-    const tableColumn = [
-      "Matrícula",
-      "Colaborador",
-      "Documento",
-      "Vencimento",
-      "Status",
-    ];
-    const tableRows = filteredDocuments.map((doc) => {
-      const emp = employees.find((e) => e.id === doc.employeeId);
-      const info = getStatusInfo(doc.expiryDate);
-      return [
-        emp?.enrollment || "N/A",
-        emp?.name || "Desconhecido",
-        doc.docType,
-        new Date(doc.expiryDate).toLocaleDateString("pt-BR"),
-        info.label,
-      ];
-    });
-
-    doc.autoTable({
-      head: [tableColumn],
-      body: tableRows,
+    autoTable(doc, {
+      head: [["Matrícula", "Colaborador", "Documento", "Vencimento", "Status"]],
+      body: filteredDocuments.map((doc) => {
+        const emp = employees.find((e) => e.id === doc.employeeId);
+        const info = getStatusInfo(doc.expiryDate);
+        return [emp?.enrollment || "N/A", emp?.name || "Desconhecido", doc.docType, new Date(doc.expiryDate).toLocaleDateString("pt-BR"), info.label];
+      }),
       startY: 30,
       theme: "grid",
       headStyles: { fillColor: [16, 185, 129] },
     });
-
-    doc.save(
-      `ITAM_SST_Relatorio_${new Date().toLocaleDateString().replace(/\//g, "-")}.pdf`,
-    );
+    doc.save(`ITAM_SST_Relatorio_${new Date().toLocaleDateString().replace(/\//g, "-")}.pdf`);
   };
 
   return (
@@ -516,7 +376,7 @@ export const SafetyDocsPage = () => {
                 {activeTab === "dashboard"
                   ? "Dashboard SST"
                   : activeTab === "employees"
-                    ? "Prontuários da Equipa"
+                    ? "Prontuários da Equipe"
                     : `Pasta: ${selectedEmployee?.name}`}
               </h2>
               <p className="text-slate-500 font-medium mt-1 text-sm">Gestão de ASOs, NRs e Documentação de Segurança</p>
@@ -555,22 +415,32 @@ export const SafetyDocsPage = () => {
         </div>
       </header>
 
-      <nav className="flex gap-2 mb-8 bg-white p-1.5 rounded-2xl shadow-sm border border-slate-100 w-fit">
-        <Button
-          variant="ghost"
-          onClick={() => setActiveTab("dashboard")}
-          className={`px-4 py-2 rounded-xl text-sm font-bold transition-all h-auto ${activeTab === "dashboard" ? "bg-emerald-500 text-white shadow-md hover:bg-emerald-600 hover:text-white" : "text-slate-500 hover:bg-slate-50"}`}
-        >
-          Visão Geral
-        </Button>
-        <Button
-          variant="ghost"
-          onClick={() => setActiveTab("employees")}
-          className={`px-4 py-2 rounded-xl text-sm font-bold transition-all h-auto ${activeTab === "employees" ? "bg-emerald-500 text-white shadow-md hover:bg-emerald-600 hover:text-white" : "text-slate-500 hover:bg-slate-50"}`}
-        >
-          Prontuários (Pastas)
-        </Button>
-      </nav>
+      {activeTab === "folder" && selectedEmployee && (
+        <nav className="flex items-center gap-2 text-sm font-medium mb-4 text-slate-500">
+          <button onClick={() => setActiveTab("employees")} className="hover:text-emerald-600 transition-colors">
+            Prontuários
+          </button>
+          <span>/</span>
+          <span className="text-slate-800 font-bold truncate max-w-xs" title={selectedEmployee.name}>
+            {selectedEmployee.name}
+          </span>
+        </nav>
+      )}
+
+      <div className="mb-8">
+        <PageTabs
+          tabs={[
+            { key: "dashboard", label: "Visão Geral" },
+            { key: "employees", label: "Prontuários" },
+          ]}
+          activeTab={activeTab === "folder" ? "employees" : activeTab}
+          onTabChange={(key) => {
+            if (key === "employees") setActiveTab("employees");
+            else setActiveTab(key);
+          }}
+          accentColor="emerald"
+        />
+      </div>
 
       {activeTab === "dashboard" && (
         <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
@@ -635,7 +505,6 @@ export const SafetyDocsPage = () => {
               <Button
                 variant="outline"
                 onClick={exportToExcel}
-                disabled={!libsLoaded}
                 className="bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-100 hover:text-emerald-700"
               >
                 <Download size={16} className="mr-2" /> Excel
@@ -643,7 +512,6 @@ export const SafetyDocsPage = () => {
               <Button
                 variant="outline"
                 onClick={exportToPDF}
-                disabled={!libsLoaded}
                 className="bg-rose-50 text-rose-600 border-rose-100 hover:bg-rose-100 hover:text-rose-700"
               >
                 <FileText size={16} className="mr-2" /> PDF
@@ -680,7 +548,7 @@ export const SafetyDocsPage = () => {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => removeDocument(doc.id)}
+                        onClick={() => setDeleteDocId(doc.id)}
                         className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 h-8 w-8 rounded-lg"
                         title="Excluir"
                       >
@@ -798,7 +666,7 @@ export const SafetyDocsPage = () => {
                       >
                         {doc.docType}
                       </div>
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex gap-1">
                         <Button
                           variant="ghost"
                           size="icon"
@@ -811,7 +679,7 @@ export const SafetyDocsPage = () => {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => removeDocument(doc.id)}
+                          onClick={() => setDeleteDocId(doc.id)}
                           className="text-slate-400 hover:text-rose-500 bg-slate-50 hover:bg-rose-50 h-8 w-8 rounded-lg"
                           title="Excluir"
                         >
@@ -1025,6 +893,28 @@ export const SafetyDocsPage = () => {
           onImportSuccess={() => loadData()}
         />
       )}
+
+      {/* DIALOG DE CONFIRMAÇÃO DE EXCLUSÃO */}
+      <Dialog open={!!deleteDocId} onOpenChange={(open) => { if (!open) setDeleteDocId(null); }}>
+        <DialogContent className="sm:max-w-sm p-0 overflow-hidden bg-white border-none rounded-3xl gap-0">
+          <DialogHeader className="p-6 bg-rose-600 text-white m-0">
+            <DialogTitle className="font-bold text-lg flex items-center gap-2">
+              <Trash2 size={20} /> Excluir Documento
+            </DialogTitle>
+          </DialogHeader>
+          <div className="p-6 space-y-4">
+            <p className="text-slate-600 text-sm">Tem certeza que deseja excluir este documento? Esta ação é irreversível.</p>
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={() => setDeleteDocId(null)} className="flex-1 rounded-2xl font-bold">
+                Cancelar
+              </Button>
+              <Button onClick={removeDocument} className="flex-1 rounded-2xl font-bold bg-rose-600 hover:bg-rose-700 text-white">
+                Excluir
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

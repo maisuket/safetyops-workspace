@@ -25,7 +25,6 @@ interface DashboardProps {
   totalBalance: number;
   employeeStats: EmployeeStat[];
   isLoading: boolean;
-  libsLoaded: boolean;
   setSelectedEmployeeId: (id: string) => void;
   setIsReportModalOpen: (isOpen: boolean) => void;
   exportToExcel: () => void;
@@ -38,7 +37,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
   totalBalance,
   employeeStats,
   isLoading,
-  libsLoaded,
   setSelectedEmployeeId,
   setIsReportModalOpen,
   exportToExcel,
@@ -90,7 +88,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <Button
             variant="outline"
             onClick={() => setIsReportModalOpen(true)}
-            disabled={!libsLoaded}
             className="flex-1 sm:flex-none text-amber-600 hover:text-amber-700 hover:bg-amber-50 border-amber-200"
           >
             <Calendar size={18} /> Folgas
@@ -98,7 +95,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <Button
             variant="outline"
             onClick={exportToExcel}
-            disabled={!libsLoaded}
             className="flex-1 sm:flex-none text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 border-emerald-200"
           >
             <Download size={18} /> Excel
@@ -106,7 +102,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <Button
             variant="outline"
             onClick={exportToPDF}
-            disabled={!libsLoaded}
             className="flex-1 sm:flex-none text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200"
           >
             <FileText size={18} /> PDF

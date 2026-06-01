@@ -12,6 +12,7 @@ import {
   Query,
   DefaultValuePipe,
   ParseIntPipe,
+  UseGuards,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -20,6 +21,7 @@ import {
   ApiBearerAuth,
   ApiParam,
 } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { EmployeesService } from './employees.service';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeStatusDto } from './dto/update-employee-status.dto';
@@ -27,7 +29,8 @@ import { Employee } from '@prisma/client';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 
 @ApiTags('Employees')
-@ApiBearerAuth() // Necessário para indicar ao Swagger que exige Token JWT
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('employees')
 export class EmployeesController {
   constructor(private readonly employeesService: EmployeesService) {}

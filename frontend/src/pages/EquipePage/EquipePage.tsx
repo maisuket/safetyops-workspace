@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   Users,
   Trash2,
   Search,
   Loader2,
-  CheckCircle2,
   Edit3,
   UserPlus,
   ToggleLeft,
@@ -15,8 +14,8 @@ import {
   User,
   Hash,
 } from "lucide-react";
-import { INITIAL_EMPLOYEES } from "../../services/data-initial";
 import { EmployeesService } from "../../services/employees.service";
+import { useEmployees } from "../../context/EmployeesContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -37,55 +36,13 @@ import {
 import { toast } from "sonner";
 
 export const EquipePage = () => {
-  const [employees, setEmployees] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { employees, isLoadingEmployees, refreshEmployees } = useEmployees();
+  const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Controle do Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<any>(null);
   const [formData, setFormData] = useState({ name: "", enrollment: "" });
-
-  const loadEmployees = async () => {
-    try {
-      setIsLoading(true);
-      const response = await EmployeesService.findAll(1, 1000).catch(() => ({
-        data: [],
-        total: 0,
-      }));
-      const data = response.data || [];
-
-      // Fallback para mock local se API falhar
-      if (data.length === 0) {
-        const mock = localStorage.getItem("itam_employees_mock");
-        if (mock) setEmployees(JSON.parse(mock));
-        else {
-          const initial = INITIAL_EMPLOYEES.map((name, i) => ({
-            id: `mock-${i}`,
-            name,
-            enrollment: `ITAM${100 + i}`,
-            active: true,
-          }));
-          setEmployees(initial);
-          localStorage.setItem("itam_employees_mock", JSON.stringify(initial));
-        }
-      } else {
-        setEmployees(data);
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadEmployees();
-  }, []);
-
-  // Simulação de base de dados local para pré-visualização
-  const saveToMock = (newEmployees: any[]) => {
-    setEmployees(newEmployees);
-    localStorage.setItem("itam_employees_mock", JSON.stringify(newEmployees));
-  };
 
   const handleOpenModal = (employee: any = null) => {
     if (employee) {
@@ -104,37 +61,19 @@ export const EquipePage = () => {
   const handleSaveEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim()) return;
-
     try {
       setIsLoading(true);
       if (editingEmployee) {
-        // Modo Edição
-        await EmployeesService.update(editingEmployee.id, formData).catch(
-          () => {
-            // Fallback Local
-            const updated = employees.map((emp) =>
-              emp.id === editingEmployee.id ? { ...emp, ...formData } : emp,
-            );
-            saveToMock(updated);
-          },
-        );
+        await EmployeesService.update(editingEmployee.id, formData);
         toast.success("Colaborador atualizado com sucesso!");
       } else {
-        // Modo Criação
-        await EmployeesService.create(formData).catch(() => {
-          // Fallback Local
-          const newEmp = {
-            id: Date.now().toString(),
-            name: formData.name.toUpperCase(),
-            enrollment: formData.enrollment,
-            active: true,
-          };
-          saveToMock([...employees, newEmp]);
-        });
+        await EmployeesService.create(formData);
         toast.success("Colaborador cadastrado com sucesso!");
       }
-      loadEmployees();
+      await refreshEmployees();
       setIsModalOpen(false);
+    } catch {
+      toast.error("Falha ao salvar. Verifique a conexão com o servidor.");
     } finally {
       setIsLoading(false);
     }
@@ -143,40 +82,34 @@ export const EquipePage = () => {
   const handleToggleStatus = async (id: string, currentStatus: boolean) => {
     try {
       setIsLoading(true);
-      await EmployeesService.toggleStatus(id, !currentStatus).catch(() => {
-        // Fallback Local
-        const updated = employees.map((emp) =>
-          emp.id === id ? { ...emp, active: !currentStatus } : emp,
-        );
-        saveToMock(updated);
-      });
-      toast.success(
-        `Colaborador ${!currentStatus ? "ativado" : "desativado"}.`,
-      );
-      loadEmployees();
+      await EmployeesService.toggleStatus(id, !currentStatus);
+      toast.success(`Colaborador ${!currentStatus ? "ativado" : "desativado"}.`);
+      await refreshEmployees();
+    } catch {
+      toast.error("Falha ao alterar status.");
     } finally {
       setIsLoading(false);
     }
   };
 
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+
   const handleDelete = async (id: string) => {
-    if (
-      !window.confirm(
-        "Aviso: Excluir um colaborador apagará o seu histórico. Tem a certeza?",
-      )
-    )
-      return;
+    setDeleteTargetId(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTargetId) return;
     try {
       setIsLoading(true);
-      await EmployeesService.remove(id).catch(() => {
-        // Fallback Local
-        const updated = employees.filter((emp) => emp.id !== id);
-        saveToMock(updated);
-      });
+      await EmployeesService.remove(deleteTargetId);
       toast.success("Colaborador excluído com sucesso.");
-      loadEmployees();
+      await refreshEmployees();
+    } catch {
+      toast.error("Falha ao excluir. Verifique a conexão.");
     } finally {
       setIsLoading(false);
+      setDeleteTargetId(null);
     }
   };
 
@@ -189,7 +122,7 @@ export const EquipePage = () => {
 
   return (
     <div className="p-4 md:p-8 animate-in fade-in duration-500 max-w-6xl mx-auto h-full flex flex-col relative">
-      {isLoading && (
+      {(isLoadingEmployees || isLoading) && (
         <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-50 flex items-center justify-center rounded-3xl">
           <Loader2 size={40} className="text-emerald-500 animate-spin" />
         </div>
@@ -202,7 +135,7 @@ export const EquipePage = () => {
           </div>
           <div>
             <h2 className="text-3xl font-black text-slate-800 tracking-tight">
-              Gestão de Equipa
+              Gestão de Equipe
             </h2>
             <p className="text-slate-500 font-medium mt-1 text-sm">
               Administração de colaboradores e acessos da plataforma.
@@ -286,23 +219,15 @@ export const EquipePage = () => {
                     </span>
                   </TableCell>
                   <TableCell className="text-right py-4 pr-6">
-                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center justify-end gap-1">
                       <Button
                         variant="ghost"
                         size="icon"
                         onClick={() => handleToggleStatus(emp.id, emp.active)}
-                        className={
-                          emp.active
-                            ? "text-amber-500 hover:text-amber-600 hover:bg-amber-50"
-                            : "text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50"
-                        }
+                        className={emp.active ? "text-amber-500 hover:text-amber-600 hover:bg-amber-50" : "text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50"}
                         title={emp.active ? "Desativar" : "Ativar"}
                       >
-                        {emp.active ? (
-                          <ToggleLeft size={20} />
-                        ) : (
-                          <ToggleRight size={20} />
-                        )}
+                        {emp.active ? <ToggleLeft size={20} /> : <ToggleRight size={20} />}
                       </Button>
                       <Button
                         variant="ghost"
@@ -318,7 +243,7 @@ export const EquipePage = () => {
                         size="icon"
                         onClick={() => handleDelete(emp.id)}
                         className="text-rose-400 hover:text-rose-600 hover:bg-rose-50"
-                        title="Excluir Permanentemente"
+                        title="Excluir"
                       >
                         <Trash2 size={20} />
                       </Button>
@@ -349,6 +274,30 @@ export const EquipePage = () => {
         </div>
       </Card>
 
+      {/* DIALOG DE CONFIRMAÇÃO DE EXCLUSÃO */}
+      <Dialog open={!!deleteTargetId} onOpenChange={(open) => { if (!open) setDeleteTargetId(null); }}>
+        <DialogContent className="sm:max-w-sm p-0 overflow-hidden bg-white border-none rounded-3xl gap-0">
+          <DialogHeader className="p-6 bg-rose-600 text-white m-0">
+            <DialogTitle className="font-bold text-lg flex items-center gap-2">
+              <Trash2 size={20} /> Excluir Colaborador
+            </DialogTitle>
+          </DialogHeader>
+          <div className="p-6 space-y-4">
+            <p className="text-slate-600 text-sm">
+              Atenção: excluir um colaborador apagará todo o seu histórico de registros. Esta ação é irreversível.
+            </p>
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={() => setDeleteTargetId(null)} className="flex-1 rounded-2xl font-bold">
+                Cancelar
+              </Button>
+              <Button onClick={confirmDelete} className="flex-1 rounded-2xl font-bold bg-rose-600 hover:bg-rose-700 text-white">
+                Excluir
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* MODAL DE CADASTRO/EDIÇÃO */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="sm:max-w-md p-0 overflow-hidden bg-white border-none rounded-[2.5rem] gap-0 [&>button]:text-white">
@@ -362,8 +311,8 @@ export const EquipePage = () => {
             </DialogTitle>
             <p className="text-slate-400 text-sm mt-2 relative z-10 font-medium">
               {editingEmployee
-                ? "Atualize as informações cadastrais do membro da equipa."
-                : "Preencha os dados abaixo para registar um novo membro na equipa."}
+                ? "Atualize as informações cadastrais do colaborador."
+                : "Preencha os dados abaixo para registrar um novo colaborador."}
             </p>
           </DialogHeader>
 
@@ -432,9 +381,7 @@ export const EquipePage = () => {
                 type="submit"
                 className="flex-1 h-12 rounded-2xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/20"
               >
-                {editingEmployee
-                  ? "Guardar Alterações"
-                  : "Registar Colaborador"}
+                {editingEmployee ? "Salvar Alterações" : "Registrar Colaborador"}
               </Button>
             </div>
           </form>

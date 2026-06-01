@@ -146,6 +146,42 @@ export class RecordsService {
   }
 
   /**
+   * Retorna registos filtrados por período e tipo — usado para relatórios.
+   * Evita buscar 10.000 registros no frontend para depois filtrar.
+   */
+  async findByPeriod(
+    startDate: string,
+    endDate: string,
+    type?: 'trabalho' | 'folga',
+  ): Promise<Record[]> {
+    try {
+      return await this.prisma.record.findMany({
+        where: {
+          date: {
+            gte: new Date(`${startDate}T00:00:00.000Z`),
+            lte: new Date(`${endDate}T23:59:59.999Z`),
+          },
+          ...(type ? { type } : {}),
+        },
+        include: {
+          employee: {
+            select: { name: true, enrollment: true },
+          },
+        },
+        orderBy: { date: 'asc' },
+      });
+    } catch (error) {
+      this.logger.error(
+        `Erro ao buscar registos por período: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        'Não foi possível carregar os registos do período.',
+      );
+    }
+  }
+
+  /**
    * Remove um registo pelo ID (útil para estornos ou correções)
    */
   async remove(id: string): Promise<{ message: string }> {

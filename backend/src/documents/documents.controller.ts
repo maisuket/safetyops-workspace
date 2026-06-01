@@ -9,6 +9,9 @@ import {
   HttpCode,
   HttpStatus,
   Put,
+  UseGuards,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -16,7 +19,10 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiParam,
+  ApiConsumes,
 } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { DocumentsService } from './documents.service';
 import { CreateDocumentDto } from './dto/create-document.dto';
 import { Document } from '@prisma/client';
@@ -24,9 +30,20 @@ import { UpdateDocumentDto } from './dto/update-document.dto';
 
 @ApiTags('Documents')
 @ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('documents')
 export class DocumentsController {
   constructor(private readonly documentsService: DocumentsService) {}
+
+  @Post('analyze')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Analisar documento SST com IA (Gemini OCR)' })
+  @ApiResponse({ status: 200, description: 'Dados extraídos pelo Gemini.' })
+  async analyzeDocument(@UploadedFile() file: Express.Multer.File) {
+    return this.documentsService.analyzeWithAI(file);
+  }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)

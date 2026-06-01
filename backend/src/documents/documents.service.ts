@@ -17,6 +17,65 @@ export class DocumentsService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
+   * Envia o documento para a API Gemini e extrai os dados de SST via OCR.
+   */
+  async analyzeWithAI(file: Express.Multer.File): Promise<any> {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new InternalServerErrorException(
+        'GEMINI_API_KEY não configurada no servidor.',
+      );
+    }
+
+    const base64 = file.buffer.toString('base64');
+
+    const payload = {
+      contents: [
+        {
+          parts: [
+            {
+              text: 'Extraia do documento SST: employeeName, docType, issueDate, expiryDate (YYYY-MM-DD). Retorne APENAS um JSON plano.',
+            },
+            {
+              inlineData: {
+                mimeType: file.mimetype || 'image/png',
+                data: base64,
+              },
+            },
+          ],
+        },
+      ],
+      generationConfig: { responseMimeType: 'application/json' },
+    };
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      this.logger.error(`Gemini API error: ${response.status}`);
+      throw new InternalServerErrorException(
+        'Falha ao comunicar com a API Gemini.',
+      );
+    }
+
+    const result = await response.json();
+    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!text) {
+      throw new InternalServerErrorException(
+        'Gemini não retornou dados legíveis.',
+      );
+    }
+
+    return JSON.parse(text);
+  }
+
+  /**
    * Realiza o arquivamento de um novo documento de SST.
    */
   async create(createDocumentDto: CreateDocumentDto): Promise<Document> {

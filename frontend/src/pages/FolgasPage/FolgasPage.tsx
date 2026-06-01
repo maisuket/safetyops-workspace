@@ -1,5 +1,14 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
-import { Plus, Loader2, Calendar } from "lucide-react";
+import { Plus, Loader2, Calendar, Trash2 } from "lucide-react";
+import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { EmployeesService } from "../../services/employees.service";
 import { RecordsService } from "../../services/records.service";
 import { INITIAL_EMPLOYEES } from "../../services/data-initial";
@@ -9,6 +18,7 @@ import { HistoryComponent } from "./components/History";
 import { LaunchModal } from "./modal/LaunchModal";
 import { ReportModal } from "./modal/ReportsModal";
 import { Button } from "@/components/ui/button";
+import { PageTabs } from "@/components/ui/page-tabs";
 import { toast } from "sonner";
 
 /**
@@ -60,7 +70,7 @@ export const FolgasPage = () => {
   );
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState<boolean>(false);
-  const [libsLoaded, setLibsLoaded] = useState<boolean>(false);
+  const [deleteRecordId, setDeleteRecordId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
@@ -87,39 +97,6 @@ export const FolgasPage = () => {
     ),
     end: getLocalDateString(),
   });
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadScript = (src: string) => {
-      return new Promise((resolve) => {
-        const script = document.createElement("script");
-        script.src = src;
-        script.onload = () => resolve(true);
-        script.onerror = () => resolve(false);
-        document.head.appendChild(script);
-      });
-    };
-
-    const initLibs = async () => {
-      const xlsx = await loadScript(
-        "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js",
-      );
-      const jspdf = await loadScript(
-        "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
-      );
-      const autotable = await loadScript(
-        "https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js",
-      );
-      if (isMounted && xlsx && jspdf && autotable) setLibsLoaded(true);
-    };
-
-    initLibs();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
 
   // Recebemos uma função opcional isMounted para verificar se o estado ainda deve ser atualizado
   const loadApiData = async (isMounted?: () => boolean) => {
@@ -167,23 +144,9 @@ export const FolgasPage = () => {
       setTotalPages(Math.ceil(total / 20)); // Assumindo limit de 20
     } catch (error) {
       console.error("Erro ao conectar com a API NestJS:", error);
-      setEmployees(
-        INITIAL_EMPLOYEES.map((name, i) => ({
-          id: String(i + 1),
-          enrollment: `ITAM${100 + i}`,
-          name,
-          active: true,
-        })),
-      );
-      if (
-        window.confirm(
-          "Aviso: Falha na ligação ao servidor NestJS. Deseja usar o modo local (Dados não serão guardados no backend)?",
-        )
-      ) {
-        // Em modo local, não há como popular stats ou records de forma confiável
-        setEmployeeStats([]);
-        setRecords([]);
-      }
+      toast.error("Falha na conexão com o servidor. Verifique se o backend está ativo.");
+      setEmployeeStats([]);
+      setRecords([]);
     } finally {
       setIsLoading(false);
     }
@@ -342,19 +305,20 @@ export const FolgasPage = () => {
     }
   };
 
-  const deleteRecord = async (id: string) => {
-    if (
-      window.confirm(
-        "Excluir este lançamento permanentemente da base de dados?",
-      )
-    ) {
-      try {
-        await RecordsService.remove(id);
-        await loadApiData(); // Recarrega os dados para refletir a exclusão
-      } catch (error) {
-        // O fallback local para exclusão também é complexo.
-        alert("Falha ao excluir registo. Verifique a sua ligação.");
-      }
+  const deleteRecord = (id: string) => {
+    setDeleteRecordId(id);
+  };
+
+  const confirmDeleteRecord = async () => {
+    if (!deleteRecordId) return;
+    try {
+      await RecordsService.remove(deleteRecordId);
+      await loadApiData();
+      toast.success("Lançamento excluído com sucesso.");
+    } catch {
+      toast.error("Falha ao excluir. Verifique a conexão.");
+    } finally {
+      setDeleteRecordId(null);
     }
   };
 
@@ -384,8 +348,6 @@ export const FolgasPage = () => {
   };
 
   const exportToExcel = () => {
-    // @ts-ignore
-    if (!window.XLSX) return;
     const data = employeeStats.map((emp) => ({
       Matrícula: emp.enrollment || "N/A",
       Nome: emp.name,
@@ -393,135 +355,72 @@ export const FolgasPage = () => {
       Folgas: emp.taken,
       "Saldo Atual": emp.balance,
     }));
-    // @ts-ignore
-    const ws = window.XLSX.utils.json_to_sheet(data);
-    // @ts-ignore
-    const wb = window.XLSX.utils.book_new();
-    // @ts-ignore
-    window.XLSX.utils.book_append_sheet(wb, ws, "Controlo de Folgas");
-    // @ts-ignore
-    window.XLSX.writeFile(
-      wb,
-      `ITAM_Controle_Folgas_${new Date().toLocaleDateString().replace(/\//g, "-")}.xlsx`,
-    );
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Controle de Folgas");
+    XLSX.writeFile(wb, `ITAM_Controle_Folgas_${new Date().toLocaleDateString().replace(/\//g, "-")}.xlsx`);
   };
 
   const exportToPDF = () => {
-    // @ts-ignore
-    if (!window.jspdf) return;
-    // @ts-ignore
-    const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
     doc.text("ITAM - Assistência Técnica - Controle de Folgas", 14, 15);
     doc.setFontSize(10);
     doc.text(`Gerado em: ${new Date().toLocaleString()}`, 14, 22);
-    const tableColumn = [
-      "Matrícula",
-      "Colaborador",
-      "Trabalhados",
-      "Folgas",
-      "Saldo",
-    ];
-    const tableRows = employeeStats.map((emp) => [
-      emp.enrollment || "N/A",
-      emp.name,
-      emp.earned,
-      emp.taken,
-      emp.balance,
-    ]);
-    doc.autoTable({
-      head: [tableColumn],
-      body: tableRows,
+    autoTable(doc, {
+      head: [["Matrícula", "Colaborador", "Trabalhados", "Folgas", "Saldo"]],
+      body: employeeStats.map((emp) => [emp.enrollment || "N/A", emp.name, emp.earned, emp.taken, emp.balance]),
       startY: 30,
       theme: "grid",
       headStyles: { fillColor: [16, 185, 129] },
     });
-    doc.save(
-      `ITAM_Relatorio_${new Date().toLocaleDateString().replace(/\//g, "-")}.pdf`,
-    );
+    doc.save(`ITAM_Relatorio_${new Date().toLocaleDateString().replace(/\//g, "-")}.pdf`);
   };
 
   const generateFolgasReport = async (e: React.FormEvent) => {
     e.preventDefault();
-    // @ts-ignore
-    if (!window.jspdf) return;
-    // @ts-ignore
-    const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
+
+    const startDateStr = new Date(reportPeriod.start).toLocaleDateString("pt-BR", { timeZone: "UTC" });
+    const endDateStr = new Date(reportPeriod.end).toLocaleDateString("pt-BR", { timeZone: "UTC" });
 
     doc.text("ITAM - Assistência Técnica - Relatório de Folgas", 14, 15);
     doc.setFontSize(10);
-
-    const startDateStr = new Date(reportPeriod.start).toLocaleDateString(
-      "pt-BR",
-      { timeZone: "UTC" },
-    );
-    const endDateStr = new Date(reportPeriod.end).toLocaleDateString("pt-BR", {
-      timeZone: "UTC",
-    });
-
-    doc.text(`Periodo: ${startDateStr} a ${endDateStr}`, 14, 22);
+    doc.text(`Período: ${startDateStr} a ${endDateStr}`, 14, 22);
     doc.text(`Gerado em: ${new Date().toLocaleString()}`, 14, 27);
 
-    // 🔥 Correção 1: Ajuste de Fuso Horário (Timezone) forçando início e fim em UTC
-    const start = new Date(`${reportPeriod.start}T00:00:00.000Z`);
-    const end = new Date(`${reportPeriod.end}T23:59:59.999Z`);
-
     try {
-      // 🔥 Correção 2: Resolver a Paginação
-      // A variável 'records' tem apenas a página atual. Precisamos de todos os dados do período.
-      // Vamos buscar um limite alto usando o serviço existente (ignorando paginação do dashboard)
-      const { data: allRecords } = await RecordsService.findAll(1, 10000);
-
-      const filteredFolgas = allRecords
-        .filter((r: FolgaRecord) => {
-          if (r.type !== "folga") return false;
-
-          const recordDate = new Date(r.date);
-
-          return recordDate >= start && recordDate <= end;
-        })
-        .sort(
-          (a: FolgaRecord, b: FolgaRecord) =>
-            new Date(a.date).getTime() - new Date(b.date).getTime(),
-        );
+      const filteredFolgas = await RecordsService.findByPeriod(
+        reportPeriod.start,
+        reportPeriod.end,
+        "folga",
+      );
 
       if (filteredFolgas.length === 0) {
-        alert("Nenhuma folga encontrada para o período selecionado.");
+        toast.info("Nenhuma folga encontrada para o período selecionado.");
         return;
       }
 
-      const tableColumn = [
-        "Matrícula",
-        "Colaborador",
-        "Data da Folga",
-        "Referente ao Serviço/Domingo",
-      ];
-      const tableRows = filteredFolgas.map((f) => {
-        const emp = employees.find((e) => e.id === f.employeeId);
-        return [
-          emp ? emp.enrollment || "N/A" : "N/A",
-          emp ? emp.name : "Desconhecido",
-          new Date(f.date).toLocaleDateString("pt-BR", { timeZone: "UTC" }),
-          f.refDate || "Não informado",
-        ];
-      });
-
-      doc.autoTable({
-        head: [tableColumn],
-        body: tableRows,
+      autoTable(doc, {
+        head: [["Matrícula", "Colaborador", "Data da Folga", "Referente ao Serviço/Domingo"]],
+        body: filteredFolgas.map((f) => {
+          const emp = employees.find((e) => e.id === f.employeeId);
+          return [
+            emp?.enrollment || "N/A",
+            emp?.name || "Desconhecido",
+            new Date(f.date).toLocaleDateString("pt-BR", { timeZone: "UTC" }),
+            f.refDate || "Não informado",
+          ];
+        }),
         startY: 35,
         theme: "grid",
         headStyles: { fillColor: [245, 158, 11] },
       });
 
-      const safeStart = startDateStr.replace(/\//g, "-");
-      const safeEnd = endDateStr.replace(/\//g, "-");
-      doc.save(`ITAM_Folgas_${safeStart}_ate_${safeEnd}.pdf`);
+      doc.save(`ITAM_Folgas_${startDateStr.replace(/\//g, "-")}_ate_${endDateStr.replace(/\//g, "-")}.pdf`);
       setIsReportModalOpen(false);
     } catch (error) {
       console.error("Erro ao gerar relatório de folgas:", error);
-      alert("Ocorreu um erro ao buscar os dados da API para o relatório.");
+      toast.error("Ocorreu um erro ao buscar os dados da API para o relatório.");
     }
   };
 
@@ -545,10 +444,10 @@ export const FolgasPage = () => {
           </div>
           <div>
             <h2 className="text-3xl font-black tracking-tight text-slate-800">
-              Controlo de Folgas
+              Controle de Folgas
             </h2>
             <p className="text-slate-500 font-medium mt-1 text-sm">
-              Gestão de saldos e compensação da equipa
+              Gestão de saldos e compensação da equipe
             </p>
           </div>
         </div>
@@ -561,22 +460,17 @@ export const FolgasPage = () => {
       </header>
 
       {!selectedEmployeeId && (
-        <nav className="flex gap-2 mb-6 bg-white p-1.5 rounded-2xl shadow-sm border border-slate-100 w-fit">
-          <Button
-            variant="ghost"
-            onClick={() => setActiveTab("dashboard")}
-            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all h-auto ${activeTab === "dashboard" ? "bg-slate-900 text-white shadow-md hover:bg-slate-800" : "text-slate-500 hover:bg-slate-50"}`}
-          >
-            Resumo
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={() => setActiveTab("history")}
-            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all h-auto ${activeTab === "history" ? "bg-slate-900 text-white shadow-md hover:bg-slate-800" : "text-slate-500 hover:bg-slate-50"}`}
-          >
-            Histórico
-          </Button>
-        </nav>
+        <div className="mb-6">
+          <PageTabs
+            tabs={[
+              { key: "dashboard", label: "Resumo" },
+              { key: "history", label: "Histórico" },
+            ]}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            accentColor="slate"
+          />
+        </div>
       )}
 
       <div className="flex-1">
@@ -594,7 +488,6 @@ export const FolgasPage = () => {
             totalBalance={totalBalance}
             employeeStats={employeeStats}
             isLoading={isLoading}
-            libsLoaded={libsLoaded}
             setSelectedEmployeeId={setSelectedEmployeeId}
             setIsReportModalOpen={setIsReportModalOpen}
             exportToExcel={exportToExcel}
@@ -612,6 +505,28 @@ export const FolgasPage = () => {
           />
         )}
       </div>
+
+      {/* DIALOG DE CONFIRMAÇÃO DE EXCLUSÃO DE LANÇAMENTO */}
+      <Dialog open={!!deleteRecordId} onOpenChange={(open) => { if (!open) setDeleteRecordId(null); }}>
+        <DialogContent className="sm:max-w-sm p-0 overflow-hidden bg-white border-none rounded-3xl gap-0">
+          <DialogHeader className="p-6 bg-rose-600 text-white m-0">
+            <DialogTitle className="font-bold text-lg flex items-center gap-2">
+              <Trash2 size={20} /> Excluir Lançamento
+            </DialogTitle>
+          </DialogHeader>
+          <div className="p-6 space-y-4">
+            <p className="text-slate-600 text-sm">Excluir este lançamento permanentemente? O saldo do colaborador será recalculado.</p>
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={() => setDeleteRecordId(null)} className="flex-1 rounded-2xl font-bold">
+                Cancelar
+              </Button>
+              <Button onClick={confirmDeleteRecord} className="flex-1 rounded-2xl font-bold bg-rose-600 hover:bg-rose-700 text-white">
+                Excluir
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {isModalOpen && (
         <LaunchModal

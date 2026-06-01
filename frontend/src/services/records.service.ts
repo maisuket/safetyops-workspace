@@ -57,6 +57,20 @@ export const RecordsService = {
   },
 
   /**
+   * Busca registos filtrados por período e tipo (para relatórios).
+   * Rota NestJS: GET /api/records/report
+   */
+  async findByPeriod(
+    startDate: string,
+    endDate: string,
+    type?: "trabalho" | "folga",
+  ): Promise<Record[]> {
+    const params = new URLSearchParams({ startDate, endDate });
+    if (type) params.append("type", type);
+    return api.get<Record[]>(`/records/report?${params.toString()}`);
+  },
+
+  /**
    * Realiza o estorno/exclusão de um lançamento.
    * Rota NestJS: DELETE /api/records/:id
    */

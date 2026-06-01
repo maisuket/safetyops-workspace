@@ -11,6 +11,8 @@ import {
   Query,
   DefaultValuePipe,
   ParseIntPipe,
+  UseGuards,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -18,14 +20,14 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RecordsService } from './records.service';
 import { CreateRecordDto } from './dto/create-record.dto';
 import { CreateBulkRecordDto } from './dto/create-bulk-record.dto';
-// import { FirebaseAuthGuard } from '../auth/firebase-auth.guard'; // A implementar
 
 @ApiTags('Records')
 @ApiBearerAuth()
-// @UseGuards(FirebaseAuthGuard) -> Proteger as rotas utilizando o Firebase Auth JWT
+@UseGuards(JwtAuthGuard)
 @Controller('records')
 export class RecordsController {
   constructor(private readonly recordsService: RecordsService) {}
@@ -47,6 +49,20 @@ export class RecordsController {
   @ApiResponse({ status: 400, description: 'Dados inválidos fornecidos.' })
   async create(@Body() createRecordDto: CreateRecordDto) {
     return this.recordsService.create(createRecordDto);
+  }
+
+  @Get('report')
+  @ApiOperation({ summary: 'Relatório de registos filtrado por período e tipo' })
+  @ApiResponse({ status: 200, description: 'Registos do período.' })
+  async findByPeriod(
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+    @Query('type') type?: 'trabalho' | 'folga',
+  ) {
+    if (!startDate || !endDate) {
+      throw new BadRequestException('startDate e endDate são obrigatórios.');
+    }
+    return this.recordsService.findByPeriod(startDate, endDate, type);
   }
 
   @Get('employee/:employeeId')

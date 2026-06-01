@@ -4,6 +4,7 @@ import { api } from "./api";
 export interface Employee {
   id: string;
   name: string;
+  enrollment?: string;
   active: boolean;
   createdAt: string;
 }
