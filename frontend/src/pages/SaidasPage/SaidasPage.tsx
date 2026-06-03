@@ -72,6 +72,7 @@ export const SaidasPage = () => {
   // Campos de formulário
   const [motivo, setMotivo] = useState("");
   const [dataSelecionada, setDataSelecionada] = useState(getISODate());
+  const [dataEmBranco, setDataEmBranco] = useState(false);
 
   // Campos específicos
   const [tipoData, setTipoData] = useState("saida");
@@ -154,7 +155,7 @@ export const SaidasPage = () => {
         nome: emp.name,
         enrollment: emp.enrollment || "N/A",
         motivo,
-        dataHora: dataSelecionada,
+        dataHora: dataEmBranco ? "" : dataSelecionada,
         tipoFormulario: tipoFormulario,
       };
 
@@ -836,10 +837,35 @@ export const SaidasPage = () => {
                 </label>
                 <Input
                   type="date"
-                  className="w-full bg-slate-50 border-slate-200 rounded-xl h-12 px-4"
-                  value={dataSelecionada}
+                  className={`w-full border-slate-200 rounded-xl h-12 px-4 transition-all ${dataEmBranco ? "bg-slate-100 text-slate-400 cursor-not-allowed opacity-60" : "bg-slate-50"}`}
+                  value={dataEmBranco ? "" : dataSelecionada}
                   onChange={(e) => setDataSelecionada(e.target.value)}
+                  disabled={dataEmBranco}
                 />
+                <label className="flex items-center gap-2 mt-2 cursor-pointer select-none">
+                  <div
+                    className={`flex items-center justify-center w-4 h-4 rounded border shrink-0 transition-all ${dataEmBranco ? "bg-slate-700 border-slate-700" : "border-slate-300 bg-white"}`}
+                    onClick={() => setDataEmBranco((v) => !v)}
+                  >
+                    {dataEmBranco && (
+                      <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                        <path d="M1.5 5L4 7.5L8.5 2.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
+                  </div>
+                  <span
+                    className="text-xs font-medium text-slate-500"
+                    onClick={() => setDataEmBranco((v) => !v)}
+                  >
+                    Emitir com data em branco
+                  </span>
+                  <input
+                    type="checkbox"
+                    className="hidden"
+                    checked={dataEmBranco}
+                    onChange={(e) => setDataEmBranco(e.target.checked)}
+                  />
+                </label>
               </div>
 
               {tipoFormulario === "saida" && (
@@ -1028,8 +1054,8 @@ export const SaidasPage = () => {
                       >
                         {r.tipoFormulario}
                       </span>
-                      <span className="text-xs font-bold text-slate-400">
-                        {formatarData(r.dataHora)}
+                      <span className={`text-xs font-bold ${r.dataHora ? "text-slate-400" : "text-amber-500 italic"}`}>
+                        {r.dataHora ? formatarData(r.dataHora) : "Sem data"}
                       </span>
                     </div>
                     <p className="font-bold text-slate-700 text-sm mb-1 pr-6">
