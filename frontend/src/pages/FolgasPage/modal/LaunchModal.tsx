@@ -5,6 +5,9 @@ import {
   Briefcase,
   TrendingUp,
   Clock,
+  AlertTriangle,
+  MapPin,
+  Hourglass,
 } from "lucide-react";
 import { useState } from "react";
 import {
@@ -48,6 +51,21 @@ export const LaunchModal: React.FC<LaunchModalProps> = ({
 }) => {
   const [isCustomLocal, setIsCustomLocal] = useState(false);
   const [isCustomRefDate, setIsCustomRefDate] = useState(false); // NOVO: Controle de digitação manual da folga
+
+  // Troca de tipo limpa os campos específicos do tipo anterior (ex: "Descrição" é reaproveitada
+  // entre CRÉDITO e AJUSTE DE HORÁRIO com significados diferentes, então não pode vazar entre eles)
+  const selectType = (type: string) => {
+    setIsCustomLocal(false);
+    setIsCustomRefDate(false);
+    setNewRecord({
+      ...newRecord,
+      type,
+      local: "",
+      description: "",
+      refDate: "",
+      justification: "",
+    });
+  };
 
   return (
     <Dialog
@@ -131,38 +149,66 @@ export const LaunchModal: React.FC<LaunchModalProps> = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-4">
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-1">
                   Tipo de Lançamento
                 </label>
-                <div className="flex p-1.5 bg-slate-100 rounded-2xl">
+                <div className="grid grid-cols-2 gap-1.5 p-1.5 bg-slate-100 rounded-2xl">
                   <Button
                     type="button"
                     variant="ghost"
-                    onClick={() =>
-                      setNewRecord({ ...newRecord, type: "trabalho" })
-                    }
-                    className={`flex-1 h-auto py-2.5 text-xs sm:text-sm font-bold rounded-xl transition-all ${newRecord.type === "trabalho" ? "bg-white text-emerald-600 shadow-sm ring-1 ring-slate-200/50 hover:bg-white hover:text-emerald-700" : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"}`}
+                    onClick={() => selectType("trabalho")}
+                    className={`h-auto py-2.5 text-xs sm:text-sm font-bold rounded-xl transition-all ${newRecord.type === "trabalho" ? "bg-white text-emerald-600 shadow-sm ring-1 ring-slate-200/50 hover:bg-white hover:text-emerald-700" : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"}`}
                   >
                     <TrendingUp size={16} className="mr-2" /> CRÉDITO
                   </Button>
                   <Button
                     type="button"
                     variant="ghost"
-                    onClick={() =>
-                      setNewRecord({ ...newRecord, type: "folga" })
-                    }
-                    className={`flex-1 h-auto py-2.5 text-xs sm:text-sm font-bold rounded-xl transition-all ${newRecord.type === "folga" ? "bg-white text-amber-600 shadow-sm ring-1 ring-slate-200/50 hover:bg-white hover:text-amber-700" : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"}`}
+                    onClick={() => selectType("folga")}
+                    className={`h-auto py-2.5 text-xs sm:text-sm font-bold rounded-xl transition-all ${newRecord.type === "folga" ? "bg-white text-amber-600 shadow-sm ring-1 ring-slate-200/50 hover:bg-white hover:text-amber-700" : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"}`}
                   >
-                    <Clock size={16} className="mr-2" /> DÉBITO
+                    <Clock size={16} className="mr-2" /> FOLGA
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => selectType("falta")}
+                    className={`h-auto py-2.5 text-xs sm:text-sm font-bold rounded-xl transition-all ${newRecord.type === "falta" ? "bg-white text-rose-600 shadow-sm ring-1 ring-slate-200/50 hover:bg-white hover:text-rose-700" : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"}`}
+                  >
+                    <AlertTriangle size={16} className="mr-2" /> FALTA
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => selectType("servico_externo")}
+                    className={`h-auto py-2.5 text-xs sm:text-sm font-bold rounded-xl transition-all ${newRecord.type === "servico_externo" ? "bg-white text-sky-600 shadow-sm ring-1 ring-slate-200/50 hover:bg-white hover:text-sky-700" : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"}`}
+                  >
+                    <MapPin size={16} className="mr-2" /> EXTERNO
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => selectType("ajuste_horario")}
+                    className={`col-span-2 h-auto py-2.5 text-xs sm:text-sm font-bold rounded-xl transition-all ${newRecord.type === "ajuste_horario" ? "bg-white text-violet-600 shadow-sm ring-1 ring-slate-200/50 hover:bg-white hover:text-violet-700" : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"}`}
+                  >
+                    <Hourglass size={16} className="mr-2" /> AJUSTE DE HORÁRIO
                   </Button>
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-1">
                   Data{" "}
-                  {newRecord.type === "trabalho" ? "do Serviço" : "da Folga"}
+                  {newRecord.type === "trabalho"
+                    ? "do Serviço"
+                    : newRecord.type === "folga"
+                      ? "da Folga"
+                      : newRecord.type === "falta"
+                        ? "da Falta"
+                        : newRecord.type === "servico_externo"
+                          ? "do Serviço Externo"
+                          : "do Ajuste"}
                 </label>
                 <Input
                   type="date"
@@ -241,7 +287,7 @@ export const LaunchModal: React.FC<LaunchModalProps> = ({
                   />
                 </div>
               </div>
-            ) : (
+            ) : newRecord.type === "folga" ? (
               <div className="bg-amber-50/50 p-5 rounded-2xl border border-amber-100">
                 <label className="block text-sm font-bold text-slate-700 mb-2">
                   Referente a qual Serviço/Domingo?
@@ -317,6 +363,122 @@ export const LaunchModal: React.FC<LaunchModalProps> = ({
                     required
                   />
                 )}
+
+                <div className="mt-4">
+                  <label className="block text-sm font-bold text-slate-700 mb-1">
+                    Justificativa{" "}
+                    <span className="text-slate-400 font-normal">
+                      (opcional)
+                    </span>
+                  </label>
+                  <textarea
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 resize-none"
+                    rows={2}
+                    placeholder="Ex: Saiu pela parte da tarde, compensação o restante do dia."
+                    value={newRecord.justification}
+                    onChange={(e) =>
+                      setNewRecord({
+                        ...newRecord,
+                        justification: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+            ) : newRecord.type === "falta" ? (
+              <div className="bg-rose-50/50 p-5 rounded-2xl border border-rose-100">
+                <label className="block text-sm font-bold text-slate-700 mb-1">
+                  Justificativa{" "}
+                  <span className="text-slate-400 font-normal">
+                    (opcional)
+                  </span>
+                </label>
+                <textarea
+                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 resize-none"
+                  rows={3}
+                  placeholder="Ex: Saiu pela parte da tarde, compensação o restante do dia. Ou: estava de serviço externo, por isso justificar."
+                  value={newRecord.justification}
+                  onChange={(e) =>
+                    setNewRecord({
+                      ...newRecord,
+                      justification: e.target.value,
+                    })
+                  }
+                />
+              </div>
+            ) : newRecord.type === "servico_externo" ? (
+              <div className="bg-sky-50/50 p-5 rounded-2xl border border-sky-100">
+                <label className="block text-sm font-bold text-slate-700 mb-1">
+                  Justificativa{" "}
+                  <span className="text-slate-400 font-normal">
+                    (opcional)
+                  </span>
+                </label>
+                <textarea
+                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 resize-none"
+                  rows={3}
+                  placeholder="Ex: Atendimento técnico externo na ENERGISA, visita ao cliente X."
+                  value={newRecord.justification}
+                  onChange={(e) =>
+                    setNewRecord({
+                      ...newRecord,
+                      justification: e.target.value,
+                    })
+                  }
+                />
+              </div>
+            ) : (
+              <div className="bg-violet-50/50 p-5 rounded-2xl border border-violet-100">
+                <label className="block text-sm font-bold text-slate-700 mb-2">
+                  O que aconteceu?
+                </label>
+                <div className="flex p-1.5 bg-white border border-violet-100 rounded-2xl mb-4">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() =>
+                      setNewRecord({
+                        ...newRecord,
+                        description: "Saída Antecipada",
+                      })
+                    }
+                    className={`flex-1 h-auto py-2.5 text-xs sm:text-sm font-bold rounded-xl transition-all ${newRecord.description === "Saída Antecipada" ? "bg-violet-600 text-white shadow-sm hover:bg-violet-600 hover:text-white" : "text-slate-500 hover:text-slate-700 hover:bg-slate-100"}`}
+                  >
+                    Saiu mais cedo
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() =>
+                      setNewRecord({
+                        ...newRecord,
+                        description: "Entrada Tardia",
+                      })
+                    }
+                    className={`flex-1 h-auto py-2.5 text-xs sm:text-sm font-bold rounded-xl transition-all ${newRecord.description === "Entrada Tardia" ? "bg-violet-600 text-white shadow-sm hover:bg-violet-600 hover:text-white" : "text-slate-500 hover:text-slate-700 hover:bg-slate-100"}`}
+                  >
+                    Entrou mais tarde
+                  </Button>
+                </div>
+
+                <label className="block text-sm font-bold text-slate-700 mb-1">
+                  Justificativa{" "}
+                  <span className="text-slate-400 font-normal">
+                    (opcional)
+                  </span>
+                </label>
+                <textarea
+                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 resize-none"
+                  rows={3}
+                  placeholder="Ex: Saiu às 14h, compensação do restante do dia já trabalhado nesta semana."
+                  value={newRecord.justification}
+                  onChange={(e) =>
+                    setNewRecord({
+                      ...newRecord,
+                      justification: e.target.value,
+                    })
+                  }
+                />
               </div>
             )}
           </form>

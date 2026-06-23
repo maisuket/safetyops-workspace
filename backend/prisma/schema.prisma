@@ -18,15 +18,16 @@ model Employee {
 }
 
 model Record {
-  id          String   @id @default(uuid())
-  type        String   // "trabalho" | "folga"
-  date        DateTime
-  local       String?  // Local de Trabalho (ITAM, DENSO, KLABIN, etc)
-  description String?
-  refDate     String?  // Vai armazenar a string gerada pelo frontend com o histórico
-  employee    Employee @relation(fields: [employeeId], references: [id])
-  employeeId  String
-  createdAt   DateTime @default(now())
+  id            String   @id @default(uuid())
+  type          String   // "trabalho" | "folga" | "falta" | "servico_externo" | "ajuste_horario"
+  date          DateTime
+  local         String?  // Local de Trabalho (ITAM, DENSO, KLABIN, etc)
+  description   String?
+  refDate       String?  // Vai armazenar a string gerada pelo frontend com o histórico
+  justification String?  // Justificativa (ex: saída antecipada, serviço externo) para folga/falta
+  employee      Employee @relation(fields: [employeeId], references: [id])
+  employeeId    String
+  createdAt     DateTime @default(now())
 }
 
 model Document {

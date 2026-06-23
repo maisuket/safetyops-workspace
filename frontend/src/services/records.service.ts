@@ -2,7 +2,12 @@ import { api } from "./api";
 import { Employee } from "./employees.service";
 
 // Tipos baseados nos DTOs do nosso NestJS
-export type RecordType = "trabalho" | "folga";
+export type RecordType =
+  | "trabalho"
+  | "folga"
+  | "falta"
+  | "servico_externo"
+  | "ajuste_horario";
 
 export interface Record {
   id: string;
@@ -10,6 +15,7 @@ export interface Record {
   date: string;
   description?: string;
   refDate?: string;
+  justification?: string;
   employeeId: string;
   employee?: Partial<Employee>; // O backend pode popular isso num JOIN (include no Prisma)
 }
@@ -20,6 +26,7 @@ export interface CreateBulkRecordDto {
   date: string;
   description?: string;
   refDate?: string;
+  justification?: string;
 }
 
 export interface PaginatedRecordsResponse {
@@ -63,7 +70,7 @@ export const RecordsService = {
   async findByPeriod(
     startDate: string,
     endDate: string,
-    type?: "trabalho" | "folga",
+    type?: RecordType,
   ): Promise<Record[]> {
     const params = new URLSearchParams({ startDate, endDate });
     if (type) params.append("type", type);

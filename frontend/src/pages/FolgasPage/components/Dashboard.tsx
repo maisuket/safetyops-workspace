@@ -90,7 +90,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             onClick={() => setIsReportModalOpen(true)}
             className="flex-1 sm:flex-none text-amber-600 hover:text-amber-700 hover:bg-amber-50 border-amber-200"
           >
-            <Calendar size={18} /> Folgas
+            <Calendar size={18} /> Lançamentos
           </Button>
           <Button
             variant="outline"
@@ -120,6 +120,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <TableHead className="font-semibold text-center">
                 Folgas
               </TableHead>
+              <TableHead className="font-semibold text-center">
+                Faltas
+              </TableHead>
+              <TableHead className="font-semibold text-center">
+                Externo
+              </TableHead>
+              <TableHead className="font-semibold text-center">
+                Ajuste
+              </TableHead>
               <TableHead className="font-semibold text-center">Saldo</TableHead>
               <TableHead className="font-semibold">Status</TableHead>
             </TableRow>
@@ -144,6 +153,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 </TableCell>
                 <TableCell className="text-center text-slate-600">
                   {emp.taken}
+                </TableCell>
+                <TableCell className="text-center text-rose-500 font-medium">
+                  {emp.absences}
+                </TableCell>
+                <TableCell className="text-center text-sky-500 font-medium">
+                  {emp.externalService}
+                </TableCell>
+                <TableCell className="text-center text-violet-500 font-medium">
+                  {emp.scheduleAdjustments}
                 </TableCell>
                 <TableCell className="text-center">
                   <span
@@ -172,7 +190,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             {employeeStats.length === 0 && !isLoading && (
               <TableRow>
                 <TableCell
-                  colSpan={6}
+                  colSpan={9}
                   className="py-12 text-center text-slate-400"
                 >
                   Nenhum colaborador encontrado.

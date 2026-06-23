@@ -7,6 +7,9 @@ import {
   Filter,
   ChevronLeft,
   ChevronRight,
+  AlertTriangle,
+  MapPin,
+  Hourglass,
 } from "lucide-react";
 import { Employee, FolgaRecord } from "../FolgasPage";
 import { Card } from "@/components/ui/card";
@@ -49,22 +52,25 @@ export const HistoryComponent: React.FC<HistoryComponentProps> = ({
   setCurrentPage,
 }) => {
   const [searchTerm, setSearchTerm] = useState<string>("");
-  const [filterType, setFilterType] = useState<"all" | "trabalho" | "folga">(
-    "all",
-  );
+  const [filterType, setFilterType] = useState<
+    "all" | "trabalho" | "folga" | "falta" | "servico_externo" | "ajuste_horario"
+  >("all");
 
   // Filtro inteligente e memoizado para performance
   const filteredRecords = useMemo(() => {
     return records.filter((record) => {
       const emp = employees.find((e) => e.id === record.employeeId);
 
-      // Busca por nome do colaborador, descrição ou referência
+      // Busca por nome do colaborador, descrição, referência ou justificativa
       const matchesSearch =
         (emp?.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
         (record.description || "")
           .toLowerCase()
           .includes(searchTerm.toLowerCase()) ||
-        (record.refDate || "").toLowerCase().includes(searchTerm.toLowerCase());
+        (record.refDate || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (record.justification || "")
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase());
 
       // Filtro por tipo (todos, trabalho, folga)
       const matchesType = filterType === "all" || record.type === filterType;
@@ -109,6 +115,9 @@ export const HistoryComponent: React.FC<HistoryComponentProps> = ({
               <SelectItem value="all">Todos</SelectItem>
               <SelectItem value="trabalho">Apenas Créditos</SelectItem>
               <SelectItem value="folga">Apenas Folgas</SelectItem>
+              <SelectItem value="falta">Apenas Faltas</SelectItem>
+              <SelectItem value="servico_externo">Apenas Serviço Externo</SelectItem>
+              <SelectItem value="ajuste_horario">Apenas Ajustes de Horário</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -154,9 +163,21 @@ export const HistoryComponent: React.FC<HistoryComponentProps> = ({
                       <span className="flex items-center gap-1 text-emerald-600 text-sm font-medium">
                         <TrendingUp size={14} /> Crédito
                       </span>
-                    ) : (
+                    ) : record.type === "folga" ? (
                       <span className="flex items-center gap-1 text-amber-600 text-sm font-medium">
                         <Clock size={14} /> Folga
+                      </span>
+                    ) : record.type === "falta" ? (
+                      <span className="flex items-center gap-1 text-rose-600 text-sm font-medium">
+                        <AlertTriangle size={14} /> Falta
+                      </span>
+                    ) : record.type === "servico_externo" ? (
+                      <span className="flex items-center gap-1 text-sky-600 text-sm font-medium">
+                        <MapPin size={14} /> Externo
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-violet-600 text-sm font-medium">
+                        <Hourglass size={14} /> Ajuste
                       </span>
                     )}
                   </TableCell>
@@ -164,8 +185,19 @@ export const HistoryComponent: React.FC<HistoryComponentProps> = ({
                     {emp?.name || "Desconhecido"}
                   </TableCell>
                   <TableCell className="text-sm text-slate-500 italic py-4">
-                    {record.description ||
-                      (record.refDate ? `Ref: ${record.refDate}` : "N/A")}
+                    {record.type === "falta" || record.type === "servico_externo"
+                      ? record.justification
+                        ? `Justificativa: ${record.justification}`
+                        : "Sem justificativa"
+                      : [
+                          record.description,
+                          record.refDate ? `Ref: ${record.refDate}` : null,
+                          record.justification
+                            ? `Justificativa: ${record.justification}`
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" | ") || "N/A"}
                   </TableCell>
                   <TableCell className="text-right py-4">
                     <Button

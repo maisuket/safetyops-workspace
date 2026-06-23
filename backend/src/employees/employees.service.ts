@@ -171,23 +171,45 @@ export class EmployeesService {
         },
       });
 
-      const statsMap = new Map<string, { earned: number; taken: number }>();
+      const statsMap = new Map<
+        string,
+        {
+          earned: number;
+          taken: number;
+          absences: number;
+          externalService: number;
+          scheduleAdjustments: number;
+        }
+      >();
       aggregations.forEach((agg) => {
-        const stat = statsMap.get(agg.employeeId) || { earned: 0, taken: 0 };
+        const stat =
+          statsMap.get(agg.employeeId) ||
+          { earned: 0, taken: 0, absences: 0, externalService: 0, scheduleAdjustments: 0 };
         if (agg.type === 'trabalho') {
           stat.earned = agg._count.id;
-        } else {
+        } else if (agg.type === 'folga') {
           stat.taken = agg._count.id;
+        } else if (agg.type === 'falta') {
+          stat.absences = agg._count.id;
+        } else if (agg.type === 'servico_externo') {
+          stat.externalService = agg._count.id;
+        } else if (agg.type === 'ajuste_horario') {
+          stat.scheduleAdjustments = agg._count.id;
         }
         statsMap.set(agg.employeeId, stat);
       });
 
       const employeeStats = employees.map((emp) => {
-        const empStats = statsMap.get(emp.id) || { earned: 0, taken: 0 };
+        const empStats =
+          statsMap.get(emp.id) ||
+          { earned: 0, taken: 0, absences: 0, externalService: 0, scheduleAdjustments: 0 };
         return {
           ...emp,
           earned: empStats.earned,
           taken: empStats.taken,
+          absences: empStats.absences,
+          externalService: empStats.externalService,
+          scheduleAdjustments: empStats.scheduleAdjustments,
           balance: empStats.earned - empStats.taken,
         };
       });

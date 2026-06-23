@@ -57,7 +57,8 @@ export class RecordsController {
   async findByPeriod(
     @Query('startDate') startDate: string,
     @Query('endDate') endDate: string,
-    @Query('type') type?: 'trabalho' | 'folga',
+    @Query('type')
+    type?: 'trabalho' | 'folga' | 'falta' | 'servico_externo' | 'ajuste_horario',
   ) {
     if (!startDate || !endDate) {
       throw new BadRequestException('startDate e endDate são obrigatórios.');

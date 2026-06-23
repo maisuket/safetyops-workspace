@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from "react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
   ChevronLeft,
   Clock,
@@ -7,6 +9,9 @@ import {
   Download,
   Trash2,
   Loader2,
+  AlertTriangle,
+  MapPin,
+  Hourglass,
 } from "lucide-react";
 import { EmployeeStat, FolgaRecord } from "../FolgasPage";
 import { RecordsService } from "../../../services/records.service";
@@ -45,28 +50,27 @@ export const EmployeeDetails: React.FC<EmployeeDetailsProps> = ({
     }
   };
 
+  // Também refaz a busca quando employeeStats muda de referência (ou seja, sempre que
+  // a página recarrega os dados após um lançamento/exclusão em qualquer parte da tela),
+  // já que deleteRecord só abre o diálogo de confirmação — a exclusão real acontece
+  // depois, em FolgasPage, e é isso que atualiza employeeStats.
   useEffect(() => {
     fetchEmployeeRecords();
-  }, [selectedEmployeeId]);
+  }, [selectedEmployeeId, employeeStats]);
 
   if (!emp) return null;
 
   const trabalhos = empRecords.filter((r) => r.type === "trabalho");
   const folgas = empRecords.filter((r) => r.type === "folga");
+  const faltas = empRecords.filter((r) => r.type === "falta");
+  const servicosExternos = empRecords.filter((r) => r.type === "servico_externo");
+  const ajustesHorario = empRecords.filter((r) => r.type === "ajuste_horario");
 
   // Arrays de referências já utilizadas por este colaborador
   const folgasDoFuncionario = folgas.map((f) => f.refDate);
 
   // Lógica de Exportação do Extrato Individual
   const generateExtractPDF = () => {
-    // @ts-ignore
-    if (!window.jspdf) {
-      alert("A biblioteca de PDF ainda não foi carregada. Tente novamente.");
-      return;
-    }
-
-    // @ts-ignore
-    const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
 
     doc.setFont("helvetica", "bold");
@@ -86,13 +90,16 @@ export const EmployeeDetails: React.FC<EmployeeDetailsProps> = ({
     // Resumo de Saldo
     doc.setDrawColor(200);
     doc.setFillColor(245, 247, 250);
-    doc.rect(14, 50, 182, 20, "FD");
+    doc.rect(14, 50, 182, 24, "FD");
 
     doc.setFont("helvetica", "bold");
     doc.text(`Total Trabalhados: ${trabalhos.length}`, 20, 62);
     doc.text(`Total Folgas: ${folgas.length}`, 80, 62);
+    doc.text(`Total Faltas: ${faltas.length}`, 140, 62);
+    doc.text(`Total Serviço Externo: ${servicosExternos.length}`, 20, 68);
+    doc.text(`Total Ajustes de Horário: ${ajustesHorario.length}`, 80, 68);
     doc.setTextColor(16, 185, 129); // Emerald
-    doc.text(`Saldo Atual Pendente: ${emp.balance}`, 140, 62);
+    doc.text(`Saldo Atual Pendente: ${emp.balance}`, 140, 68);
     doc.setTextColor(0, 0, 0);
 
     // Tabela de Histórico Unificada
@@ -101,7 +108,16 @@ export const EmployeeDetails: React.FC<EmployeeDetailsProps> = ({
       const dataFormatada = new Date(r.date).toLocaleDateString("pt-BR", {
         timeZone: "UTC",
       });
-      const tipo = r.type === "trabalho" ? "Crédito (+)" : "Folga (-)";
+      const tipo =
+        r.type === "trabalho"
+          ? "Crédito (+)"
+          : r.type === "folga"
+            ? "Folga (-)"
+            : r.type === "falta"
+              ? "Falta"
+              : r.type === "servico_externo"
+                ? "Serviço Externo"
+                : "Ajuste de Horário";
 
       let status = "Concluído";
       if (r.type === "trabalho") {
@@ -112,29 +128,45 @@ export const EmployeeDetails: React.FC<EmployeeDetailsProps> = ({
         status = isUsed ? "Compensado" : "Disponível";
       }
 
-      return [dataFormatada, tipo, r.description || r.refDate || "N/A", status];
+      const descricao = [
+        r.description,
+        r.refDate ? `Ref: ${r.refDate}` : null,
+        r.justification ? `Justificativa: ${r.justification}` : null,
+      ]
+        .filter(Boolean)
+        .join(" | ") || "N/A";
+
+      return [dataFormatada, tipo, descricao, status];
     });
 
-    // @ts-ignore
-    doc.autoTable({
+    autoTable(doc, {
       head: [tableColumn],
       body: tableRows,
       startY: 80,
       theme: "grid",
       headStyles: { fillColor: [30, 41, 59] }, // Slate 900
       alternateRowStyles: { fillColor: [248, 250, 252] },
+      rowPageBreak: "avoid",
     });
 
-    const finalY = (doc as any).lastAutoTable.finalY + 30;
-    doc.line(40, finalY, 170, finalY);
-    doc.text("Assinatura do Colaborador", 105, finalY + 6, { align: "center" });
+    // Garante que a linha de assinatura não seja cortada quando a tabela termina perto do fim da página
+    const pageHeight = doc.internal.pageSize.getHeight();
+    let signatureY = (doc as any).lastAutoTable.finalY + 30;
+    if (signatureY + 10 > pageHeight) {
+      doc.addPage();
+      signatureY = 30;
+    }
+    doc.line(40, signatureY, 170, signatureY);
+    doc.text("Assinatura do Colaborador", 105, signatureY + 6, { align: "center" });
 
     doc.save(`Extrato_Folgas_${emp.name.replace(/\s+/g, "_")}.pdf`);
   };
 
   const handleDelete = async (id: string) => {
+    // deleteRecord só abre o diálogo de confirmação (a exclusão real é assíncrona e
+    // acontece em FolgasPage); a lista é recarregada automaticamente pelo efeito acima
+    // quando employeeStats for atualizado após a confirmação.
     await deleteRecord(id);
-    await fetchEmployeeRecords(); // Atualiza a visão de detalhes após remover na DB
   };
 
   return (
@@ -172,7 +204,7 @@ export const EmployeeDetails: React.FC<EmployeeDetailsProps> = ({
         </Button>
       </CardHeader>
 
-      <CardContent className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8 bg-slate-50/50">
+      <CardContent className="p-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 bg-slate-50/50">
         {isLoading && (
           <div className="col-span-full flex flex-col items-center justify-center py-12">
             <Loader2 className="animate-spin text-emerald-500 mb-4" size={40} />
@@ -307,6 +339,201 @@ export const EmployeeDetails: React.FC<EmployeeDetailsProps> = ({
                             Ref:
                           </span>{" "}
                           {f.refDate || "Sem referência"}
+                        </span>
+                        {f.justification && (
+                          <span className="text-slate-500 text-xs mt-1 ml-2">
+                            <span className="text-slate-400 font-normal mr-1">
+                              Justificativa:
+                            </span>
+                            {f.justification}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Faltas */}
+            <Card>
+              <CardHeader className="p-5 pb-3 border-b">
+                <CardTitle className="text-lg font-bold flex items-center gap-2 text-rose-600">
+                  <AlertTriangle size={20} /> Faltas
+                  <span className="ml-auto bg-rose-100 text-rose-700 py-0.5 px-2.5 rounded-lg text-xs font-black">
+                    {faltas.length}
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-5 pt-4">
+                {faltas.length === 0 ? (
+                  <p className="text-slate-400 text-sm italic text-center py-6">
+                    Nenhuma falta registada.
+                  </p>
+                ) : (
+                  <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
+                    {faltas.map((f) => (
+                      <div
+                        key={f.id}
+                        className="p-4 bg-rose-50/50 border border-rose-100 rounded-xl flex flex-col gap-1 relative overflow-hidden group"
+                      >
+                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-rose-400"></div>
+                        <div className="flex justify-between items-start ml-2 pr-2">
+                          <span className="text-xs font-bold text-rose-600 bg-white border border-rose-100 w-fit px-2 py-0.5 rounded-md">
+                            {new Date(f.date).toLocaleDateString("pt-BR", {
+                              timeZone: "UTC",
+                            })}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDelete(f.id)}
+                            className="text-slate-400 hover:text-rose-500 h-8 w-8 opacity-0 group-hover:opacity-100"
+                            title="Excluir Falta"
+                          >
+                            <Trash2 size={16} />
+                          </Button>
+                        </div>
+                        <span className="text-slate-700 text-sm mt-2 ml-2">
+                          {f.justification ? (
+                            <>
+                              <span className="text-slate-400 font-normal mr-1">
+                                Justificativa:
+                              </span>
+                              {f.justification}
+                            </>
+                          ) : (
+                            <span className="text-slate-400 italic">
+                              Sem justificativa
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Serviço Externo */}
+            <Card>
+              <CardHeader className="p-5 pb-3 border-b">
+                <CardTitle className="text-lg font-bold flex items-center gap-2 text-sky-600">
+                  <MapPin size={20} /> Serviço Externo
+                  <span className="ml-auto bg-sky-100 text-sky-700 py-0.5 px-2.5 rounded-lg text-xs font-black">
+                    {servicosExternos.length}
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-5 pt-4">
+                {servicosExternos.length === 0 ? (
+                  <p className="text-slate-400 text-sm italic text-center py-6">
+                    Nenhum serviço externo registado.
+                  </p>
+                ) : (
+                  <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
+                    {servicosExternos.map((s) => (
+                      <div
+                        key={s.id}
+                        className="p-4 bg-sky-50/50 border border-sky-100 rounded-xl flex flex-col gap-1 relative overflow-hidden group"
+                      >
+                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-sky-400"></div>
+                        <div className="flex justify-between items-start ml-2 pr-2">
+                          <span className="text-xs font-bold text-sky-600 bg-white border border-sky-100 w-fit px-2 py-0.5 rounded-md">
+                            {new Date(s.date).toLocaleDateString("pt-BR", {
+                              timeZone: "UTC",
+                            })}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDelete(s.id)}
+                            className="text-slate-400 hover:text-rose-500 h-8 w-8 opacity-0 group-hover:opacity-100"
+                            title="Excluir Serviço Externo"
+                          >
+                            <Trash2 size={16} />
+                          </Button>
+                        </div>
+                        <span className="text-slate-700 text-sm mt-2 ml-2">
+                          {s.justification ? (
+                            <>
+                              <span className="text-slate-400 font-normal mr-1">
+                                Justificativa:
+                              </span>
+                              {s.justification}
+                            </>
+                          ) : (
+                            <span className="text-slate-400 italic">
+                              Sem justificativa
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Ajuste de Horário */}
+            <Card>
+              <CardHeader className="p-5 pb-3 border-b">
+                <CardTitle className="text-lg font-bold flex items-center gap-2 text-violet-600">
+                  <Hourglass size={20} /> Ajuste de Horário
+                  <span className="ml-auto bg-violet-100 text-violet-700 py-0.5 px-2.5 rounded-lg text-xs font-black">
+                    {ajustesHorario.length}
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-5 pt-4">
+                {ajustesHorario.length === 0 ? (
+                  <p className="text-slate-400 text-sm italic text-center py-6">
+                    Nenhum ajuste de horário registado.
+                  </p>
+                ) : (
+                  <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
+                    {ajustesHorario.map((a) => (
+                      <div
+                        key={a.id}
+                        className="p-4 bg-violet-50/50 border border-violet-100 rounded-xl flex flex-col gap-1 relative overflow-hidden group"
+                      >
+                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-violet-400"></div>
+                        <div className="flex justify-between items-start ml-2 pr-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-violet-600 bg-white border border-violet-100 w-fit px-2 py-0.5 rounded-md">
+                              {new Date(a.date).toLocaleDateString("pt-BR", {
+                                timeZone: "UTC",
+                              })}
+                            </span>
+                            {a.description && (
+                              <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-md border border-slate-200">
+                                {a.description}
+                              </span>
+                            )}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDelete(a.id)}
+                            className="text-slate-400 hover:text-rose-500 h-8 w-8 opacity-0 group-hover:opacity-100"
+                            title="Excluir Ajuste de Horário"
+                          >
+                            <Trash2 size={16} />
+                          </Button>
+                        </div>
+                        <span className="text-slate-700 text-sm mt-2 ml-2">
+                          {a.justification ? (
+                            <>
+                              <span className="text-slate-400 font-normal mr-1">
+                                Justificativa:
+                              </span>
+                              {a.justification}
+                            </>
+                          ) : (
+                            <span className="text-slate-400 italic">
+                              Sem justificativa
+                            </span>
+                          )}
                         </span>
                       </div>
                     ))}

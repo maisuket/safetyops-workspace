@@ -11,6 +11,9 @@ import {
 export enum RecordType {
   TRABALHO = 'trabalho',
   FOLGA = 'folga',
+  FALTA = 'falta',
+  SERVICO_EXTERNO = 'servico_externo',
+  AJUSTE_HORARIO = 'ajuste_horario',
 }
 
 export class CreateRecordDto {
@@ -42,6 +45,14 @@ export class CreateRecordDto {
   @IsString()
   @IsOptional()
   refDate?: string;
+
+  @ApiPropertyOptional({
+    example: 'Saiu pela parte da tarde, compensação o restante do dia',
+    description: 'Justificativa para folga/falta (ex: saída antecipada, serviço externo)',
+  })
+  @IsString()
+  @IsOptional()
+  justification?: string;
 
   @ApiProperty({
     example: 'uuid-do-colaborador',

@@ -1,4 +1,4 @@
-import { Calendar, FileText } from "lucide-react";
+import { Calendar, FileText, Download } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -10,6 +10,7 @@ import {
 interface ReportModalProps {
   setIsReportModalOpen: (isOpen: boolean) => void;
   generateFolgasReport: (e: React.FormEvent) => void;
+  generateFolgasReportExcel: () => void;
   reportPeriod: any;
   setReportPeriod: (period: any) => void;
 }
@@ -17,6 +18,7 @@ interface ReportModalProps {
 export const ReportModal: React.FC<ReportModalProps> = ({
   setIsReportModalOpen,
   generateFolgasReport,
+  generateFolgasReportExcel,
   reportPeriod,
   setReportPeriod,
 }) => (
@@ -29,7 +31,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     <DialogContent className="sm:max-w-sm p-0 overflow-hidden bg-white border-none rounded-3xl gap-0 [&>button]:text-white flex flex-col">
       <DialogHeader className="p-6 bg-amber-500 text-white m-0 shrink-0">
         <DialogTitle className="text-xl font-bold flex items-center gap-2">
-          <Calendar size={20} /> Relatório de Folgas
+          <Calendar size={20} /> Relatório de Lançamentos
         </DialogTitle>
       </DialogHeader>
 
@@ -40,7 +42,8 @@ export const ReportModal: React.FC<ReportModalProps> = ({
           className="space-y-4"
         >
           <p className="text-sm text-slate-500 mb-4">
-            Selecione o período para gerar o PDF detalhado de todas as folgas.
+            Selecione o período para gerar um relatório detalhado de folgas,
+            faltas, serviços externos e ajustes de horário.
           </p>
           <div>
             <label className="block text-sm font-bold text-slate-700 mb-1">
@@ -72,13 +75,20 @@ export const ReportModal: React.FC<ReportModalProps> = ({
           </div>
         </form>
       </div>
-      <div className="p-6 border-t border-slate-100 shrink-0 bg-slate-50 rounded-b-3xl">
+      <div className="p-6 border-t border-slate-100 shrink-0 bg-slate-50 rounded-b-3xl flex gap-3">
+        <button
+          type="button"
+          onClick={generateFolgasReportExcel}
+          className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2"
+        >
+          <Download size={20} /> Excel
+        </button>
         <button
           type="submit"
           form="reportForm"
-          className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-amber-500/30 flex items-center justify-center gap-2"
+          className="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-amber-500/30 flex items-center justify-center gap-2"
         >
-          <FileText size={20} /> Gerar PDF
+          <FileText size={20} /> PDF
         </button>
       </div>
     </DialogContent>

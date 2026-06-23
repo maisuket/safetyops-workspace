@@ -39,6 +39,7 @@ export class RecordsService {
           date: new Date(createRecordDto.date),
           description: createRecordDto.description,
           refDate: createRecordDto.refDate,
+          justification: createRecordDto.justification,
           employeeId: createRecordDto.employeeId,
         },
       });
@@ -71,6 +72,7 @@ export class RecordsService {
         local: createBulkRecordDto.local,
         description: createBulkRecordDto.description,
         refDate: createBulkRecordDto.refDate,
+        justification: createBulkRecordDto.justification,
       }));
 
       // Utilizar createMany para uma inserção massiva e otimizada
@@ -152,7 +154,7 @@ export class RecordsService {
   async findByPeriod(
     startDate: string,
     endDate: string,
-    type?: 'trabalho' | 'folga',
+    type?: 'trabalho' | 'folga' | 'falta' | 'servico_externo' | 'ajuste_horario',
   ): Promise<Record[]> {
     try {
       return await this.prisma.record.findMany({

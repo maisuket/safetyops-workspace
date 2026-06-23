@@ -34,19 +34,30 @@ export interface Employee {
   active?: boolean;
 }
 
+export type RecordTypeUI =
+  | "trabalho"
+  | "folga"
+  | "falta"
+  | "servico_externo"
+  | "ajuste_horario";
+
 export interface FolgaRecord {
   id: string;
   employeeId: string;
-  type: "trabalho" | "folga";
+  type: RecordTypeUI;
   date: string;
   local?: string;
   description?: string;
   refDate?: string;
+  justification?: string;
 }
 
 export interface EmployeeStat extends Employee {
   earned: number;
   taken: number;
+  absences: number;
+  externalService: number;
+  scheduleAdjustments: number;
   balance: number;
 }
 
@@ -84,11 +95,12 @@ export const FolgasPage = () => {
 
   const [newRecord, setNewRecord] = useState({
     employeeIds: [] as string[],
-    type: "trabalho" as "trabalho" | "folga",
+    type: "trabalho" as RecordTypeUI,
     date: getLocalDateString(),
     local: "",
     description: "",
     refDate: "",
+    justification: "",
   });
 
   const [reportPeriod, setReportPeriod] = useState({
@@ -286,12 +298,18 @@ export const FolgasPage = () => {
       setIsLoading(true);
       await RecordsService.createBulk({
         employeeIds: newRecord.employeeIds,
-        type: newRecord.type as "trabalho" | "folga",
+        type: newRecord.type,
         date: newRecord.date,
         local: newRecord.type === "trabalho" ? newRecord.local : undefined,
         description:
-          newRecord.type === "trabalho" ? newRecord.description : undefined,
+          newRecord.type === "trabalho" || newRecord.type === "ajuste_horario"
+            ? newRecord.description
+            : undefined,
         refDate: newRecord.type === "folga" ? newRecord.refDate : undefined,
+        justification:
+          newRecord.type !== "trabalho"
+            ? newRecord.justification || undefined
+            : undefined,
       });
       await loadApiData();
       closeModal();
@@ -343,6 +361,7 @@ export const FolgasPage = () => {
       local: "",
       description: "",
       refDate: "",
+      justification: "",
     });
     setSearchTerm("");
   };
@@ -353,6 +372,9 @@ export const FolgasPage = () => {
       Nome: emp.name,
       "Domingos Trabalhados": emp.earned,
       Folgas: emp.taken,
+      Faltas: emp.absences,
+      "Serviço Externo": emp.externalService,
+      "Ajuste de Horário": emp.scheduleAdjustments,
       "Saldo Atual": emp.balance,
     }));
     const ws = XLSX.utils.json_to_sheet(data);
@@ -367,13 +389,51 @@ export const FolgasPage = () => {
     doc.setFontSize(10);
     doc.text(`Gerado em: ${new Date().toLocaleString()}`, 14, 22);
     autoTable(doc, {
-      head: [["Matrícula", "Colaborador", "Trabalhados", "Folgas", "Saldo"]],
-      body: employeeStats.map((emp) => [emp.enrollment || "N/A", emp.name, emp.earned, emp.taken, emp.balance]),
+      head: [["Matrícula", "Colaborador", "Trabalhados", "Folgas", "Faltas", "Externo", "Ajuste", "Saldo"]],
+      body: employeeStats.map((emp) => [emp.enrollment || "N/A", emp.name, emp.earned, emp.taken, emp.absences, emp.externalService, emp.scheduleAdjustments, emp.balance]),
       startY: 30,
       theme: "grid",
       headStyles: { fillColor: [16, 185, 129] },
+      rowPageBreak: "avoid",
     });
     doc.save(`ITAM_Relatorio_${new Date().toLocaleDateString().replace(/\//g, "-")}.pdf`);
+  };
+
+  // Tipos com saldo neutro (não geram crédito) que entram no relatório de período:
+  // folga e falta afetam o banco de horas, serviço externo e ajuste de horário são só informativos.
+  const PERIOD_REPORT_TYPES = ["folga", "falta", "servico_externo", "ajuste_horario"];
+
+  const tipoLabel = (type: string) =>
+    type === "falta"
+      ? "Falta"
+      : type === "servico_externo"
+        ? "Serviço Externo"
+        : type === "ajuste_horario"
+          ? "Ajuste de Horário"
+          : "Folga";
+
+  const referenciaLabel = (f: FolgaRecord) => {
+    if (f.type === "falta" || f.type === "servico_externo") {
+      return f.justification
+        ? `Justificativa: ${f.justification}`
+        : "Sem justificativa";
+    }
+    return (
+      [
+        f.type === "ajuste_horario" ? f.description : f.refDate ? `Ref: ${f.refDate}` : null,
+        f.justification ? `Justificativa: ${f.justification}` : null,
+      ]
+        .filter(Boolean)
+        .join(" | ") || "Não informado"
+    );
+  };
+
+  const fetchPeriodReportRecords = async () => {
+    const periodRecords = await RecordsService.findByPeriod(
+      reportPeriod.start,
+      reportPeriod.end,
+    );
+    return periodRecords.filter((r) => PERIOD_REPORT_TYPES.includes(r.type));
   };
 
   const generateFolgasReport = async (e: React.FormEvent) => {
@@ -383,43 +443,89 @@ export const FolgasPage = () => {
     const startDateStr = new Date(reportPeriod.start).toLocaleDateString("pt-BR", { timeZone: "UTC" });
     const endDateStr = new Date(reportPeriod.end).toLocaleDateString("pt-BR", { timeZone: "UTC" });
 
-    doc.text("ITAM - Assistência Técnica - Relatório de Folgas", 14, 15);
+    doc.text("ITAM - Assistência Técnica - Relatório de Lançamentos", 14, 15);
     doc.setFontSize(10);
     doc.text(`Período: ${startDateStr} a ${endDateStr}`, 14, 22);
     doc.text(`Gerado em: ${new Date().toLocaleString()}`, 14, 27);
 
     try {
-      const filteredFolgas = await RecordsService.findByPeriod(
-        reportPeriod.start,
-        reportPeriod.end,
-        "folga",
-      );
+      const filteredRecords = await fetchPeriodReportRecords();
 
-      if (filteredFolgas.length === 0) {
-        toast.info("Nenhuma folga encontrada para o período selecionado.");
+      if (filteredRecords.length === 0) {
+        toast.info("Nenhum lançamento encontrado para o período selecionado.");
         return;
       }
 
       autoTable(doc, {
-        head: [["Matrícula", "Colaborador", "Data da Folga", "Referente ao Serviço/Domingo"]],
-        body: filteredFolgas.map((f) => {
+        head: [["Matrícula", "Colaborador", "Tipo", "Data", "Referência / Justificativa"]],
+        body: filteredRecords.map((f) => {
           const emp = employees.find((e) => e.id === f.employeeId);
           return [
             emp?.enrollment || "N/A",
             emp?.name || "Desconhecido",
+            tipoLabel(f.type),
             new Date(f.date).toLocaleDateString("pt-BR", { timeZone: "UTC" }),
-            f.refDate || "Não informado",
+            referenciaLabel(f),
           ];
         }),
         startY: 35,
         theme: "grid",
         headStyles: { fillColor: [245, 158, 11] },
+        rowPageBreak: "avoid",
+        didParseCell: (data) => {
+          if (data.section !== "body" || data.column.index !== 2) return;
+          const colors: Record<string, [number, number, number]> = {
+            Falta: [220, 38, 38],
+            "Serviço Externo": [2, 132, 199],
+            "Ajuste de Horário": [124, 58, 237],
+          };
+          const color = colors[data.cell.raw as string];
+          if (color) data.cell.styles.textColor = color;
+        },
       });
 
-      doc.save(`ITAM_Folgas_${startDateStr.replace(/\//g, "-")}_ate_${endDateStr.replace(/\//g, "-")}.pdf`);
+      doc.save(`ITAM_Lancamentos_${startDateStr.replace(/\//g, "-")}_ate_${endDateStr.replace(/\//g, "-")}.pdf`);
       setIsReportModalOpen(false);
     } catch (error) {
-      console.error("Erro ao gerar relatório de folgas:", error);
+      console.error("Erro ao gerar relatório de lançamentos:", error);
+      toast.error("Ocorreu um erro ao buscar os dados da API para o relatório.");
+    }
+  };
+
+  const generateFolgasReportExcel = async () => {
+    const startDateStr = new Date(reportPeriod.start)
+      .toLocaleDateString("pt-BR", { timeZone: "UTC" })
+      .replace(/\//g, "-");
+    const endDateStr = new Date(reportPeriod.end)
+      .toLocaleDateString("pt-BR", { timeZone: "UTC" })
+      .replace(/\//g, "-");
+
+    try {
+      const filteredRecords = await fetchPeriodReportRecords();
+
+      if (filteredRecords.length === 0) {
+        toast.info("Nenhum lançamento encontrado para o período selecionado.");
+        return;
+      }
+
+      const data = filteredRecords.map((f) => {
+        const emp = employees.find((e) => e.id === f.employeeId);
+        return {
+          Matrícula: emp?.enrollment || "N/A",
+          Colaborador: emp?.name || "Desconhecido",
+          Tipo: tipoLabel(f.type),
+          Data: new Date(f.date).toLocaleDateString("pt-BR", { timeZone: "UTC" }),
+          "Referência / Justificativa": referenciaLabel(f),
+        };
+      });
+
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Lançamentos");
+      XLSX.writeFile(wb, `ITAM_Lancamentos_${startDateStr}_ate_${endDateStr}.xlsx`);
+      setIsReportModalOpen(false);
+    } catch (error) {
+      console.error("Erro ao gerar relatório de lançamentos:", error);
       toast.error("Ocorreu um erro ao buscar os dados da API para o relatório.");
     }
   };
@@ -546,6 +652,7 @@ export const FolgasPage = () => {
         <ReportModal
           setIsReportModalOpen={setIsReportModalOpen}
           generateFolgasReport={generateFolgasReport}
+          generateFolgasReportExcel={generateFolgasReportExcel}
           reportPeriod={reportPeriod}
           setReportPeriod={setReportPeriod}
         />
