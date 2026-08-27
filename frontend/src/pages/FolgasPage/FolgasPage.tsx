@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { EmployeesService } from "../../services/employees.service";
 import { RecordsService } from "../../services/records.service";
+import { useEmployees } from "../../context/EmployeesContext";
 import { EmployeeDetails } from "./components/EmployeeDetails";
 import { Dashboard } from "./components/Dashboard";
 import { HistoryComponent } from "./components/History";
@@ -71,7 +72,10 @@ const getLocalDateString = (date = new Date()) => {
 };
 
 export const FolgasPage = () => {
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  // Lista de colaboradores compartilhada com o resto do app (Equipe, Saídas,
+  // SST) — evita buscar a mesma lista de novo e ficar dessincronizado quando
+  // alguém edita um colaborador em outra tela.
+  const { employees } = useEmployees();
   const [records, setRecords] = useState<FolgaRecord[]>([]);
   const [employeeStats, setEmployeeStats] = useState<EmployeeStat[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -116,13 +120,9 @@ export const FolgasPage = () => {
   const loadApiData = async (isMounted?: () => boolean) => {
     try {
       setIsLoading(true);
-      // Busca os stats e os colaboradores em paralelo
-      const [statsData, empsResponse] = await Promise.all([
-        EmployeesService.getStats(),
-        EmployeesService.findAll(1, 1000),
-      ]);
-
-      const empsData = empsResponse.data;
+      // Estatísticas de folgas por colaborador (específicas desta tela — a
+      // lista de colaboradores em si vem do EmployeesContext compartilhado)
+      const statsData = await EmployeesService.getStats();
 
       // Busca os registos paginados
       const { data: recsData, total } = await RecordsService.findAll(
@@ -135,7 +135,6 @@ export const FolgasPage = () => {
       // Se a página mudou ou o componente desmontou antes do fim da requisição, descarta os dados
       if (isMounted && !isMounted()) return;
 
-      setEmployees(empsData);
       setEmployeeStats(statsData);
       setRecords(recsData);
       setTotalRecords(total);
