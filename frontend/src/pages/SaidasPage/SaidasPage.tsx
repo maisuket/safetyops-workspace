@@ -49,6 +49,18 @@ const getISODate = (date = new Date()) => {
   return date.toISOString().split("T")[0];
 };
 
+const SAIDAS_FILA_STORAGE_KEY = "itam_saidas_fila_impressao";
+
+const loadScript = (src: string) => {
+  return new Promise<boolean>((resolve) => {
+    const script = document.createElement("script");
+    script.src = src;
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.head.appendChild(script);
+  });
+};
+
 const formatarData = (isoDate: string) => {
   if (!isoDate) return "";
   const [year, month, day] = isoDate.split("-");
@@ -60,12 +72,24 @@ export const SaidasPage = () => {
   const [employees, setEmployees] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [libsLoaded, setLibsLoaded] = useState(false);
+  const [libsFailed, setLibsFailed] = useState(false);
+  const [isLoadingLibs, setIsLoadingLibs] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
   const [tipoFormulario, setTipoFormulario] = useState<"saida" | "uber">(
     "saida",
   );
-  const [registros, setRegistros] = useState<any[]>([]);
+  // A fila de impressão é restaurada do localStorage: antes disso, trocar de
+  // aba (ou recarregar a página) descartava silenciosamente tudo que ainda
+  // não tinha sido gerado em PDF/Excel.
+  const [registros, setRegistros] = useState<any[]>(() => {
+    try {
+      const raw = localStorage.getItem(SAIDAS_FILA_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
   const [colaboradoresSelecionados, setColaboradoresSelecionados] = useState<
     string[]
   >([]);
@@ -80,34 +104,47 @@ export const SaidasPage = () => {
   const [destino, setDestino] = useState("");
   const [comAssinatura, setComAssinatura] = useState(true);
 
-  // Rastreia quais registros já foram gravados no backend, para não duplicar
-  // o lançamento quando o mesmo lote é gerado em PDF e depois em Excel.
-  const persistedIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    try {
+      localStorage.setItem(SAIDAS_FILA_STORAGE_KEY, JSON.stringify(registros));
+    } catch {
+      // Armazenamento indisponível (ex: modo privado) — a fila continua
+      // funcionando normalmente em memória, só não sobrevive a um reload.
+    }
+  }, [registros]);
+
+  // Carrega jsPDF e ExcelJS via CDN. Extraída do useEffect para poder ser
+  // chamada de novo por um botão "Tentar novamente" caso o CDN falhe (rede
+  // instável ou serviço fora do ar) — sem isso, os botões de Gerar PDF/Excel
+  // ficavam desabilitados para sempre, sem qualquer explicação ao utilizador.
+  const initLibs = async () => {
+    setIsLoadingLibs(true);
+    setLibsFailed(false);
+    try {
+      const [jspdf, exceljs] = await Promise.all([
+        loadScript(
+          "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
+        ),
+        loadScript(
+          "https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js",
+        ),
+      ]);
+
+      if (jspdf && exceljs) {
+        setLibsLoaded(true);
+      } else {
+        setLibsFailed(true);
+        toast.error(
+          "Não foi possível carregar os componentes de geração de PDF/Excel. Verifique sua conexão com a internet.",
+        );
+      }
+    } finally {
+      setIsLoadingLibs(false);
+    }
+  };
 
   // === INICIALIZAÇÃO ===
   useEffect(() => {
-    const loadScript = (src: string) => {
-      return new Promise((resolve) => {
-        const script = document.createElement("script");
-        script.src = src;
-        script.onload = () => resolve(true);
-        script.onerror = () => resolve(false);
-        document.head.appendChild(script);
-      });
-    };
-
-    const initLibs = async () => {
-      // Carrega jsPDF e ExcelJS via CDN para manter compatibilidade com o seu código anterior
-      const jspdf = await loadScript(
-        "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
-      );
-      const exceljs = await loadScript(
-        "https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js",
-      );
-
-      if (jspdf && exceljs) setLibsLoaded(true);
-    };
-
     const fetchEmployees = async () => {
       try {
         const response = await EmployeesService.findAll(1, 1000);
@@ -115,6 +152,9 @@ export const SaidasPage = () => {
         setEmployees(response.data.filter((e: any) => e.active !== false));
       } catch (error) {
         console.error("Erro ao buscar colaboradores:", error);
+        toast.error(
+          "Falha ao carregar a lista de colaboradores. Verifique a conexão com o servidor.",
+        );
       } finally {
         setIsLoading(false);
       }
@@ -122,6 +162,7 @@ export const SaidasPage = () => {
 
     initLibs();
     fetchEmployees();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const filteredEmployees = useMemo(() => {
@@ -640,8 +681,11 @@ export const SaidasPage = () => {
   // Grava no backend, para fins de rastreio, os registros ainda não persistidos
   // deste lote. É chamado no momento em que o PDF/Excel é de facto gerado (a
   // emissão real), e não quando o item só é adicionado à lista de impressão.
+  // O status "sincronizado" fica no próprio objeto do registro (persistido em
+  // localStorage) em vez de um ref em memória, para não duplicar o lançamento
+  // caso a página seja recarregada ou trocada antes de gerar de novo.
   const persistRegistros = async (regs: any[]) => {
-    const novos = regs.filter((r) => !persistedIdsRef.current.has(r.id));
+    const novos = regs.filter((r) => !r._synced);
     if (novos.length === 0) return;
 
     try {
@@ -654,7 +698,10 @@ export const SaidasPage = () => {
         dataOcorrencia: r.dataHora || undefined,
       }));
       await SaidasService.createBulk(items);
-      novos.forEach((r) => persistedIdsRef.current.add(r.id));
+      const novosIds = new Set(novos.map((r) => r.id));
+      setRegistros((prev) =>
+        prev.map((r) => (novosIds.has(r.id) ? { ...r, _synced: true } : r)),
+      );
     } catch (error) {
       console.error("Erro ao gravar rastreio de saídas:", error);
       toast.error(
@@ -1014,6 +1061,28 @@ export const SaidasPage = () => {
               {tipoFormulario === "saida" ? "Saída" : "Uber"} configurada
               abaixo.
             </p>
+
+            {libsFailed && (
+              <div className="mb-4 p-4 bg-rose-500/10 border border-rose-500/30 rounded-2xl flex flex-col gap-3 relative z-10">
+                <span className="text-sm text-rose-300 flex items-center gap-2">
+                  <AlertCircle size={16} className="shrink-0" />
+                  Não foi possível carregar os componentes de PDF/Excel
+                  (verifique sua internet).
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={initLibs}
+                  disabled={isLoadingLibs}
+                  className="w-full bg-transparent border-rose-400/40 text-rose-200 hover:bg-rose-500/20 hover:text-white"
+                >
+                  {isLoadingLibs ? (
+                    <Loader2 size={16} className="animate-spin mr-2" />
+                  ) : null}
+                  Tentar novamente
+                </Button>
+              </div>
+            )}
 
             <div className="flex flex-col gap-3 relative z-10">
               <Button

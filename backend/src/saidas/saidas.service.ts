@@ -32,6 +32,23 @@ export class SaidasService {
     dto: CreateBulkSaidaDto,
   ): Promise<{ count: number; batchId: string }> {
     try {
+      // Valida que todos os colaboradores existem antes de inserir — sem isso,
+      // um único employeeId inválido faz o lote inteiro falhar por violação de
+      // chave estrangeira, sem indicar qual item é o problema.
+      const uniqueIds = [...new Set(dto.items.map((item) => item.employeeId))];
+      const existing = await this.prisma.employee.findMany({
+        where: { id: { in: uniqueIds } },
+        select: { id: true },
+      });
+      const existingIds = new Set(existing.map((e) => e.id));
+      const missingIds = uniqueIds.filter((id) => !existingIds.has(id));
+
+      if (missingIds.length > 0) {
+        throw new NotFoundException(
+          `Colaborador(es) não encontrado(s): ${missingIds.join(', ')}`,
+        );
+      }
+
       const batchId = randomUUID();
 
       const data = dto.items.map((item) => ({
@@ -52,6 +69,8 @@ export class SaidasService {
 
       return { count: result.count, batchId };
     } catch (error) {
+      if (error instanceof NotFoundException) throw error;
+
       this.logger.error(
         `Erro ao gravar lote de saídas: ${error.message}`,
         error.stack,
