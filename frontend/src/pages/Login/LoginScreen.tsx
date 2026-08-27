@@ -25,7 +25,13 @@ export const LoginScreen = ({ onLogin }: { onLogin: (token: string) => void }) =
       });
 
       if (!response.ok) {
-        setError("Credenciais inválidas. Tente novamente.");
+        if (response.status === 429) {
+          setError(
+            "Muitas tentativas de login. Aguarde um minuto antes de tentar novamente.",
+          );
+        } else {
+          setError("Credenciais inválidas. Tente novamente.");
+        }
         setPassword("");
         return;
       }
