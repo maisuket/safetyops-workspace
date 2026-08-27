@@ -3,6 +3,7 @@ import { LoginScreen } from "./pages/Login/LoginScreen";
 import { MainLayout } from "./components/Layout/MainLayout";
 import { FolgasPage } from "./pages/FolgasPage/FolgasPage";
 import { SaidasPage } from "./pages/SaidasPage/SaidasPage";
+import { RastreioSaidasPage } from "./pages/RastreioSaidasPage/RastreioSaidasPage";
 import { SafetyDocsPage } from "./pages/SafetyDocsPage/SafetyDocsPage";
 import { EquipePage } from "./pages/EquipePage/EquipePage";
 import { EmployeesProvider } from "./context/EmployeesContext";
@@ -45,6 +46,7 @@ const App = () => {
       <MainLayout activePage={activePage} setActivePage={setActivePage} onLogout={() => setShowLogoutDialog(true)}>
         {activePage === "folgas" && <FolgasPage />}
         {activePage === "saidas" && <SaidasPage />}
+        {activePage === "rastreio-saidas" && <RastreioSaidasPage />}
         {activePage === "sst" && <SafetyDocsPage />}
         {activePage === "equipe" && <EquipePage />}
       </MainLayout>

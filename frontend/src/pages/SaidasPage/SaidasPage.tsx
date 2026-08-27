@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   FileText,
   Download,
@@ -16,6 +16,7 @@ import {
   User,
 } from "lucide-react";
 import { EmployeesService } from "../../services/employees.service";
+import { SaidasService } from "../../services/saidas.service";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -78,6 +79,10 @@ export const SaidasPage = () => {
   const [tipoData, setTipoData] = useState("saida");
   const [destino, setDestino] = useState("");
   const [comAssinatura, setComAssinatura] = useState(true);
+
+  // Rastreia quais registros já foram gravados no backend, para não duplicar
+  // o lançamento quando o mesmo lote é gerado em PDF e depois em Excel.
+  const persistedIdsRef = useRef<Set<string>>(new Set());
 
   // === INICIALIZAÇÃO ===
   useEffect(() => {
@@ -632,6 +637,32 @@ export const SaidasPage = () => {
     doc.save(`Solicitacoes_Uber_${dataGeracao.replace(/\//g, "-")}.pdf`);
   };
 
+  // Grava no backend, para fins de rastreio, os registros ainda não persistidos
+  // deste lote. É chamado no momento em que o PDF/Excel é de facto gerado (a
+  // emissão real), e não quando o item só é adicionado à lista de impressão.
+  const persistRegistros = async (regs: any[]) => {
+    const novos = regs.filter((r) => !persistedIdsRef.current.has(r.id));
+    if (novos.length === 0) return;
+
+    try {
+      const items = novos.map((r) => ({
+        employeeId: r.employeeId,
+        tipo: r.tipoFormulario,
+        tipoData: r.tipoFormulario === "saida" ? r.tipoData : undefined,
+        destino: r.tipoFormulario === "uber" ? r.destino : undefined,
+        motivo: r.motivo,
+        dataOcorrencia: r.dataHora || undefined,
+      }));
+      await SaidasService.createBulk(items);
+      novos.forEach((r) => persistedIdsRef.current.add(r.id));
+    } catch (error) {
+      console.error("Erro ao gravar rastreio de saídas:", error);
+      toast.error(
+        "O arquivo foi gerado, mas não foi possível salvar o rastreio (verifique a conexão).",
+      );
+    }
+  };
+
   const handleGerarPDF = async () => {
     const registrosParaGerar = registros.filter(
       (r) => r.tipoFormulario === tipoFormulario,
@@ -645,6 +676,7 @@ export const SaidasPage = () => {
         await gerarPDFSaida(registrosParaGerar, assets);
       else await gerarPDFUber(registrosParaGerar, assets);
       toast.success("PDF gerado com sucesso!");
+      await persistRegistros(registrosParaGerar);
     } catch (error) {
       toast.error("Erro ao gerar PDF.");
     } finally {
@@ -702,6 +734,7 @@ export const SaidasPage = () => {
       link.click();
       document.body.removeChild(link);
       toast.success("Ficheiro Excel gerado com sucesso!");
+      await persistRegistros(registrosParaGerar);
     } catch (error) {
       toast.error("Erro ao gerar Excel.");
     }

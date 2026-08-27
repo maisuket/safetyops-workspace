@@ -4,6 +4,7 @@ import {
   User,
   LogOut,
   Truck,
+  Search,
   ShieldCheck,
   Users,
   Hexagon,
@@ -22,6 +23,7 @@ export const Sidebar = ({ activePage, setActivePage, onLogout }) => {
   const menuItems = [
     { id: "folgas", icon: Calendar, label: "Controle de Folgas" },
     { id: "saidas", icon: Truck, label: "Gestão de Saídas" },
+    { id: "rastreio-saidas", icon: Search, label: "Rastreio de Saídas" },
     { id: "sst", icon: ShieldCheck, label: "Safety / SST" },
     { id: "equipe", icon: Users, label: "Gestão de Equipe" },
   ];
