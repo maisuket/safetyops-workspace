@@ -62,6 +62,12 @@ export class EmployeesService {
         },
       });
     } catch (error) {
+      if (error.code === 'P2002') {
+        throw new ConflictException(
+          'Esta matrícula já está em uso por outro colaborador.',
+        );
+      }
+
       this.logger.error(
         `Erro ao criar colaborador: ${error.message}`,
         error.stack,
@@ -130,12 +136,17 @@ export class EmployeesService {
           'Esta matrícula já está em uso por outro colaborador.',
         );
       }
+      if (error.code === 'P2025') {
+        throw new NotFoundException(`Colaborador com ID ${id} não encontrado.`);
+      }
 
       this.logger.error(
         `Erro ao atualizar colaborador: ${error.message}`,
         error.stack,
       );
-      throw error;
+      throw new InternalServerErrorException(
+        'Não foi possível atualizar o colaborador.',
+      );
     }
   }
 
@@ -147,8 +158,25 @@ export class EmployeesService {
       await this.prisma.employee.delete({ where: { id } });
       return { message: 'Colaborador removido com sucesso.' };
     } catch (error) {
+      if (error.code === 'P2025') {
+        throw new NotFoundException(`Colaborador com ID ${id} não encontrado.`);
+      }
+      // P2003: violação de chave estrangeira — o colaborador tem folgas, saídas
+      // ou documentos vinculados (não há cascade de exclusão de propósito).
+      // Isso é uma regra de negócio esperada, não uma falha do servidor.
+      if (error.code === 'P2003') {
+        throw new ConflictException(
+          'Não é possível excluir este colaborador porque existem lançamentos ' +
+            '(folgas, saídas ou documentos) vinculados a ele. Desative-o em vez de excluir.',
+        );
+      }
+
+      this.logger.error(
+        `Erro ao remover colaborador ${id}: ${error.message}`,
+        error.stack,
+      );
       throw new InternalServerErrorException(
-        'Erro ao remover colaborador. Verifique se existem registos vinculados.',
+        'Não foi possível remover o colaborador.',
       );
     }
   }

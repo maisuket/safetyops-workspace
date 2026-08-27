@@ -72,8 +72,12 @@ export const EquipePage = () => {
       }
       await refreshEmployees();
       setIsModalOpen(false);
-    } catch {
-      toast.error("Falha ao salvar. Verifique a conexão com o servidor.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Falha ao salvar. Verifique a conexão com o servidor.",
+      );
     } finally {
       setIsLoading(false);
     }
@@ -105,8 +109,12 @@ export const EquipePage = () => {
       await EmployeesService.remove(deleteTargetId);
       toast.success("Colaborador excluído com sucesso.");
       await refreshEmployees();
-    } catch {
-      toast.error("Falha ao excluir. Verifique a conexão.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Falha ao excluir. Verifique a conexão.",
+      );
     } finally {
       setIsLoading(false);
       setDeleteTargetId(null);
