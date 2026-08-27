@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useRef } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Plus, Loader2, Calendar, Trash2 } from "lucide-react";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/dialog";
 import { EmployeesService } from "../../services/employees.service";
 import { RecordsService } from "../../services/records.service";
-import { INITIAL_EMPLOYEES } from "../../services/data-initial";
 import { EmployeeDetails } from "./components/EmployeeDetails";
 import { Dashboard } from "./components/Dashboard";
 import { HistoryComponent } from "./components/History";
@@ -91,9 +90,6 @@ export const FolgasPage = () => {
     FolgaRecord[]
   >([]);
 
-  // Ref para prevenir inserções duplicadas apenas durante a sementeira (seeding) inicial da BD
-  const isSeeding = useRef<boolean>(false);
-
   const [newRecord, setNewRecord] = useState({
     employeeIds: [] as string[],
     type: "trabalho" as RecordTypeUI,
@@ -116,32 +112,12 @@ export const FolgasPage = () => {
     try {
       setIsLoading(true);
       // Busca os stats e os colaboradores em paralelo
-      let [statsData, empsResponse] = await Promise.all([
+      const [statsData, empsResponse] = await Promise.all([
         EmployeesService.getStats(),
         EmployeesService.findAll(1, 1000),
       ]);
 
-      let empsData = empsResponse.data;
-
-      // Seeding inicial (lógica mantida)
-      if (
-        empsData.length === 0 &&
-        INITIAL_EMPLOYEES?.length > 0 &&
-        !isSeeding.current
-      ) {
-        isSeeding.current = true;
-        console.log("A semear base de dados com técnicos iniciais...");
-        for (let i = 0; i < INITIAL_EMPLOYEES.length; i++) {
-          await EmployeesService.create(INITIAL_EMPLOYEES[i] as any);
-        }
-        const [newStats, newEmps] = await Promise.all([
-          EmployeesService.getStats(),
-          EmployeesService.findAll(1, 1000),
-        ]);
-        statsData = newStats;
-        empsData = newEmps.data;
-        isSeeding.current = false;
-      }
+      const empsData = empsResponse.data;
 
       // Busca os registos paginados
       const { data: recsData, total } =
