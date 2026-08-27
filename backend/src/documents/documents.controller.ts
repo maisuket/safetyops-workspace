@@ -12,6 +12,9 @@ import {
   UseGuards,
   UploadedFile,
   UseInterceptors,
+  ParseFilePipe,
+  MaxFileSizeValidator,
+  FileTypeValidator,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -37,11 +40,32 @@ export class DocumentsController {
 
   @Post('analyze')
   @HttpCode(HttpStatus.OK)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }), // 10MB
+  )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Analisar documento SST com IA (Gemini OCR)' })
   @ApiResponse({ status: 200, description: 'Dados extraídos pelo Gemini.' })
-  async analyzeDocument(@UploadedFile() file: Express.Multer.File) {
+  @ApiResponse({
+    status: 400,
+    description: 'Arquivo ausente, grande demais ou de tipo não suportado.',
+  })
+  async analyzeDocument(
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({
+            maxSize: 10 * 1024 * 1024,
+            message: 'O arquivo excede o limite de 10MB.',
+          }),
+          new FileTypeValidator({
+            fileType: /^(image\/(png|jpe?g|webp)|application\/pdf)$/,
+          }),
+        ],
+      }),
+    )
+    file: Express.Multer.File,
+  ) {
     return this.documentsService.analyzeWithAI(file);
   }
 

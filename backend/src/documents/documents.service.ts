@@ -72,7 +72,25 @@ export class DocumentsService {
       );
     }
 
-    return JSON.parse(text);
+    // Apesar de pedirmos responseMimeType: application/json, o modelo às
+    // vezes ainda envolve a resposta em blocos de código markdown
+    // (```json ... ```) — removemos isso antes de fazer o parse.
+    const cleanText = text
+      .trim()
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/```\s*$/i, '');
+
+    try {
+      return JSON.parse(cleanText);
+    } catch (error) {
+      this.logger.error(
+        `Gemini retornou um JSON inválido: ${error.message}`,
+        text,
+      );
+      throw new InternalServerErrorException(
+        'Não foi possível interpretar a resposta da IA. Tente novamente ou preencha manualmente.',
+      );
+    }
   }
 
   /**
