@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import type { Request, Response, NextFunction } from 'express';
 import { AppModule } from './app.module';
 
 import * as admin from 'firebase-admin';
@@ -98,6 +99,25 @@ async function bootstrap(): Promise<void> {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
+
+  // Protege a documentação com Basic Auth (mesmas credenciais do login) —
+  // antes ficava pública, expondo todo o mapa de rotas/DTOs da API para
+  // qualquer visitante não autenticado.
+  app.use(['/docs', '/docs-json', '/docs-yaml'], (req: Request, res: Response, next: NextFunction) => {
+    const header = req.headers.authorization || '';
+    const [scheme, encoded] = header.split(' ');
+    const [user, pass] =
+      scheme === 'Basic' && encoded
+        ? Buffer.from(encoded, 'base64').toString().split(':')
+        : [];
+
+    if (user === process.env.AUTH_USERNAME && pass === process.env.AUTH_PASSWORD) {
+      return next();
+    }
+
+    res.set('WWW-Authenticate', 'Basic realm="SafetyOps API Docs"');
+    res.status(401).send('Autenticação necessária.');
+  });
 
   // Disponibiliza o Swagger no endpoint /docs
   SwaggerModule.setup('docs', app, document);
