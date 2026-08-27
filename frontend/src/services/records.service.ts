@@ -39,10 +39,19 @@ export const RecordsService = {
    * Busca todo o histórico de lançamentos.
    * Rota NestJS: GET /api/records
    */
-  async findAll(page = 1, limit = 20): Promise<PaginatedRecordsResponse> {
-    return api.get<PaginatedRecordsResponse>(
-      `/records?page=${page}&limit=${limit}`,
-    );
+  async findAll(
+    page = 1,
+    limit = 20,
+    search?: string,
+    type?: RecordType,
+  ): Promise<PaginatedRecordsResponse> {
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(limit),
+    });
+    if (search) params.append("search", search);
+    if (type) params.append("type", type);
+    return api.get<PaginatedRecordsResponse>(`/records?${params.toString()}`);
   },
 
   /**

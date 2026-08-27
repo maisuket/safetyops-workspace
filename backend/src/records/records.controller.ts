@@ -87,8 +87,11 @@ export class RecordsController {
   async findAll(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+    @Query('search') search?: string,
+    @Query('type')
+    type?: 'trabalho' | 'folga' | 'falta' | 'servico_externo' | 'ajuste_horario',
   ) {
-    return this.recordsService.findAll(page, limit);
+    return this.recordsService.findAll(page, limit, search, type);
   }
 
   @Delete(':id')

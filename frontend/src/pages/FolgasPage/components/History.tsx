@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Clock,
   Trash2,
@@ -41,6 +41,8 @@ interface HistoryComponentProps {
   currentPage: number;
   totalPages: number;
   setCurrentPage: (page: number) => void;
+  onSearchChange: (term: string) => void;
+  onFilterTypeChange: (type: string) => void;
 }
 
 export const HistoryComponent: React.FC<HistoryComponentProps> = ({
@@ -51,34 +53,27 @@ export const HistoryComponent: React.FC<HistoryComponentProps> = ({
   currentPage,
   totalPages,
   setCurrentPage,
+  onSearchChange,
+  onFilterTypeChange,
 }) => {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [filterType, setFilterType] = useState<
     "all" | "trabalho" | "folga" | "falta" | "servico_externo" | "ajuste_horario"
   >("all");
 
-  // Filtro inteligente e memoizado para performance
-  const filteredRecords = useMemo(() => {
-    return records.filter((record) => {
-      const emp = employees.find((e) => e.id === record.employeeId);
+  // A busca agora é feita no backend (cobrindo todos os lançamentos, não só a
+  // página atual), então esperamos o utilizador parar de digitar antes de
+  // disparar a consulta.
+  useEffect(() => {
+    const timeout = setTimeout(() => onSearchChange(searchTerm), 400);
+    return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm]);
 
-      // Busca por nome do colaborador, descrição, referência ou justificativa
-      const matchesSearch =
-        (emp?.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (record.description || "")
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase()) ||
-        (record.refDate || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (record.justification || "")
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase());
-
-      // Filtro por tipo (todos, trabalho, folga)
-      const matchesType = filterType === "all" || record.type === filterType;
-
-      return matchesSearch && matchesType;
-    });
-  }, [records, employees, searchTerm, filterType]);
+  const handleFilterTypeChange = (val: typeof filterType) => {
+    setFilterType(val);
+    onFilterTypeChange(val);
+  };
 
   return (
     <Card className="rounded-2xl shadow-sm border-slate-100 overflow-hidden animate-in slide-in-from-bottom-4 duration-500">
@@ -104,7 +99,7 @@ export const HistoryComponent: React.FC<HistoryComponentProps> = ({
 
           <Select
             value={filterType}
-            onValueChange={(val: any) => setFilterType(val)}
+            onValueChange={(val: any) => handleFilterTypeChange(val)}
           >
             <SelectTrigger className="w-full sm:w-[180px] bg-slate-50 rounded-xl h-10">
               <div className="flex items-center gap-2">
@@ -147,7 +142,7 @@ export const HistoryComponent: React.FC<HistoryComponentProps> = ({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredRecords.map((record) => {
+            {records.map((record) => {
               const emp = employees.find((e) => e.id === record.employeeId);
               return (
                 <TableRow
@@ -225,7 +220,7 @@ export const HistoryComponent: React.FC<HistoryComponentProps> = ({
               );
             })}
 
-            {filteredRecords.length === 0 && !isLoading && (
+            {records.length === 0 && !isLoading && (
               <TableRow className="hover:bg-transparent">
                 <TableCell
                   colSpan={5}
@@ -249,7 +244,7 @@ export const HistoryComponent: React.FC<HistoryComponentProps> = ({
             variant="outline"
             size="sm"
             onClick={() => setCurrentPage(currentPage - 1)}
-            disabled={currentPage === 1 || isLoading}
+            disabled={currentPage <= 1 || isLoading}
             className="flex items-center gap-1 rounded-lg"
           >
             <ChevronLeft size={16} />
@@ -259,7 +254,7 @@ export const HistoryComponent: React.FC<HistoryComponentProps> = ({
             variant="outline"
             size="sm"
             onClick={() => setCurrentPage(currentPage + 1)}
-            disabled={currentPage === totalPages || isLoading}
+            disabled={currentPage >= totalPages || isLoading}
             className="flex items-center gap-1 rounded-lg"
           >
             Próximo

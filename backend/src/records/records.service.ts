@@ -8,7 +8,7 @@ import {
 import { PrismaService } from 'src/database/prisma.service';
 import { CreateRecordDto } from './dto/create-record.dto';
 import { CreateBulkRecordDto } from './dto/create-bulk-record.dto';
-import { Record } from '@prisma/client';
+import { Prisma, Record } from '@prisma/client';
 
 @Injectable()
 export class RecordsService {
@@ -64,6 +64,23 @@ export class RecordsService {
     createBulkRecordDto: CreateBulkRecordDto,
   ): Promise<{ count: number; message: string }> {
     try {
+      // Valida que todos os colaboradores existem antes de inserir — sem isso,
+      // um único ID inválido no lote faz o insert inteiro falhar por violação
+      // de chave estrangeira, sem indicar qual colaborador é o problema.
+      const uniqueIds = [...new Set(createBulkRecordDto.employeeIds)];
+      const existing = await this.prisma.employee.findMany({
+        where: { id: { in: uniqueIds } },
+        select: { id: true },
+      });
+      const existingIds = new Set(existing.map((e) => e.id));
+      const missingIds = uniqueIds.filter((id) => !existingIds.has(id));
+
+      if (missingIds.length > 0) {
+        throw new NotFoundException(
+          `Colaborador(es) não encontrado(s): ${missingIds.join(', ')}`,
+        );
+      }
+
       // Mapear os dados para o formato esperado pelo Prisma
       const recordsData = createBulkRecordDto.employeeIds.map((employeeId) => ({
         employeeId,
@@ -87,6 +104,8 @@ export class RecordsService {
         count: result.count,
       };
     } catch (error) {
+      if (error instanceof NotFoundException) throw error;
+
       this.logger.error(
         `Erro na inserção em lote: ${error.message}`,
         error.stack,
@@ -103,11 +122,32 @@ export class RecordsService {
   async findAll(
     page = 1,
     limit = 20,
+    search?: string,
+    type?: 'trabalho' | 'folga' | 'falta' | 'servico_externo' | 'ajuste_horario',
   ): Promise<{ data: Record[]; total: number }> {
     const skip = (page - 1) * limit;
 
+    // A busca precisa ser aplicada aqui (no dataset completo) e não no
+    // frontend, senão um lançamento que esteja fora da página atual some da
+    // busca sem nenhuma explicação para quem está a procurar.
+    const where: Prisma.RecordWhereInput = {
+      ...(type ? { type } : {}),
+      ...(search
+        ? {
+            OR: [
+              { employee: { name: { contains: search } } },
+              { description: { contains: search } },
+              { refDate: { contains: search } },
+              { justification: { contains: search } },
+              { local: { contains: search } },
+            ],
+          }
+        : {}),
+    };
+
     const [records, total] = await this.prisma.$transaction([
       this.prisma.record.findMany({
+        where,
         skip,
         take: limit,
         include: {
@@ -122,7 +162,7 @@ export class RecordsService {
           date: 'desc', // Ordenar do mais recente para o mais antigo
         },
       }),
-      this.prisma.record.count(),
+      this.prisma.record.count({ where }),
     ]);
 
     return { data: records, total };

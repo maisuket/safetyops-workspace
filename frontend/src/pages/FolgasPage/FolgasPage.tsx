@@ -86,6 +86,11 @@ export const FolgasPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [totalRecords, setTotalRecords] = useState(0);
+  // Busca/filtro do Histórico de Lançamentos: precisam ir para o backend (em
+  // vez de filtrar só a página de 20 itens já carregada), senão um registo
+  // que esteja em outra página some da busca sem explicação.
+  const [historySearchTerm, setHistorySearchTerm] = useState("");
+  const [historyFilterType, setHistoryFilterType] = useState("all");
   const [selectedEmployeesRecords, setSelectedEmployeesRecords] = useState<
     FolgaRecord[]
   >([]);
@@ -120,8 +125,12 @@ export const FolgasPage = () => {
       const empsData = empsResponse.data;
 
       // Busca os registos paginados
-      const { data: recsData, total } =
-        await RecordsService.findAll(currentPage);
+      const { data: recsData, total } = await RecordsService.findAll(
+        currentPage,
+        20,
+        historySearchTerm || undefined,
+        historyFilterType === "all" ? undefined : (historyFilterType as any),
+      );
 
       // Se a página mudou ou o componente desmontou antes do fim da requisição, descarta os dados
       if (isMounted && !isMounted()) return;
@@ -147,7 +156,17 @@ export const FolgasPage = () => {
     return () => {
       mounted = false;
     };
-  }, [currentPage]); // Recarrega os dados quando a página muda
+  }, [currentPage, historySearchTerm, historyFilterType]); // Recarrega quando a página ou a busca/filtro do histórico mudam
+
+  const handleHistorySearchChange = (term: string) => {
+    setCurrentPage(1); // Nova busca sempre reinicia a paginação
+    setHistorySearchTerm(term);
+  };
+
+  const handleHistoryFilterTypeChange = (type: string) => {
+    setCurrentPage(1);
+    setHistoryFilterType(type);
+  };
 
   // Busca o histórico detalhado dos colaboradores sempre que são selecionados no Modal
   useEffect(() => {
@@ -594,6 +613,8 @@ export const FolgasPage = () => {
             currentPage={currentPage}
             totalPages={totalPages}
             setCurrentPage={setCurrentPage}
+            onSearchChange={handleHistorySearchChange}
+            onFilterTypeChange={handleHistoryFilterTypeChange}
           />
         )}
       </div>
