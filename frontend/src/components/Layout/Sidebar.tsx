@@ -69,20 +69,31 @@ export const Sidebar = ({ activePage, setActivePage, onLogout }) => {
               key={item.id}
               variant="ghost"
               onClick={() => setActivePage(item.id)}
+              title={item.label}
+              aria-label={item.label}
               className={`justify-start gap-3 px-4 h-auto py-3.5 rounded-xl transition-all font-medium whitespace-nowrap md:whitespace-normal ${isActive ? "bg-emerald-500 text-white hover:bg-emerald-600 hover:text-white" : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"}`}
             >
-              <Icon size={20} /> {item.label}
+              <Icon size={20} />
+              {/* Em telas muito estreitas, mostra só o ícone (com tooltip/aria-label)
+                  para caber os 5 itens sem exigir rolagem horizontal */}
+              <span className="hidden sm:inline">{item.label}</span>
             </Button>
           );
         })}
       </div>
-      <div className="p-4 border-t border-slate-800 hidden md:block">
+      {/* Antes ficava "hidden md:block" — no celular não havia NENHUMA forma de
+          sair do sistema pela sidebar. Agora aparece sempre, como uma linha
+          própria abaixo do menu (o aside já empilha os blocos verticalmente). */}
+      <div className="p-4 border-t border-slate-800">
         <Button
           variant="ghost"
           onClick={onLogout}
-          className="w-full justify-start gap-3 px-4 h-auto py-3 rounded-xl transition-all font-medium text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
+          title="Sair do Sistema"
+          aria-label="Sair do Sistema"
+          className="w-full justify-center md:justify-start gap-3 px-4 h-auto py-3 rounded-xl transition-all font-medium text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
         >
-          <LogOut size={20} /> Sair do Sistema
+          <LogOut size={20} />
+          <span className="hidden sm:inline">Sair do Sistema</span>
         </Button>
       </div>
     </aside>

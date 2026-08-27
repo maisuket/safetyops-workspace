@@ -332,6 +332,7 @@ export const EmployeeDetails: React.FC<EmployeeDetailsProps> = ({
             onClick={() => setSelectedEmployeeId(null)}
             className="bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700 h-11 w-11"
             title="Voltar ao Resumo"
+            aria-label="Voltar ao Resumo"
           >
             <ChevronLeft size={24} />
           </Button>
@@ -430,6 +431,7 @@ export const EmployeeDetails: React.FC<EmployeeDetailsProps> = ({
                                 onClick={() => handleDelete(t.id)}
                                 className="text-slate-400 hover:text-rose-500 h-8 w-8"
                                 title="Reverter / Excluir Lançamento"
+                                aria-label="Reverter / Excluir Lançamento"
                               >
                                 <Trash2 size={16} />
                               </Button>
@@ -508,6 +510,7 @@ export const EmployeeDetails: React.FC<EmployeeDetailsProps> = ({
                               onClick={() => handleDelete(f.id)}
                               className="text-slate-400 hover:text-rose-500 h-8 w-8 opacity-0 group-hover:opacity-100"
                               title="Reverter Folga"
+                              aria-label="Reverter Folga"
                             >
                               <Trash2 size={16} />
                             </Button>
@@ -575,6 +578,7 @@ export const EmployeeDetails: React.FC<EmployeeDetailsProps> = ({
                             onClick={() => handleDelete(f.id)}
                             className="text-slate-400 hover:text-rose-500 h-8 w-8 opacity-0 group-hover:opacity-100"
                             title="Excluir Falta"
+                            aria-label="Excluir Falta"
                           >
                             <Trash2 size={16} />
                           </Button>
@@ -635,6 +639,7 @@ export const EmployeeDetails: React.FC<EmployeeDetailsProps> = ({
                             onClick={() => handleDelete(s.id)}
                             className="text-slate-400 hover:text-rose-500 h-8 w-8 opacity-0 group-hover:opacity-100"
                             title="Excluir Serviço Externo"
+                            aria-label="Excluir Serviço Externo"
                           >
                             <Trash2 size={16} />
                           </Button>
@@ -702,6 +707,7 @@ export const EmployeeDetails: React.FC<EmployeeDetailsProps> = ({
                             onClick={() => handleDelete(a.id)}
                             className="text-slate-400 hover:text-rose-500 h-8 w-8 opacity-0 group-hover:opacity-100"
                             title="Excluir Ajuste de Horário"
+                            aria-label="Excluir Ajuste de Horário"
                           >
                             <Trash2 size={16} />
                           </Button>

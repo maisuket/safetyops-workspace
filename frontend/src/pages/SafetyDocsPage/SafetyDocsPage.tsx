@@ -541,6 +541,7 @@ export const SafetyDocsPage = () => {
                         onClick={() => handleEditDocument(doc)}
                         className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 h-8 w-8 rounded-lg"
                         title="Editar"
+                        aria-label="Editar"
                       >
                         <Edit3 size={16} />
                       </Button>
@@ -550,6 +551,7 @@ export const SafetyDocsPage = () => {
                         onClick={() => setDeleteDocId(doc.id)}
                         className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 h-8 w-8 rounded-lg"
                         title="Excluir"
+                        aria-label="Excluir"
                       >
                         <Trash2 size={16} />
                       </Button>
@@ -672,6 +674,7 @@ export const SafetyDocsPage = () => {
                           onClick={() => handleEditDocument(doc)}
                           className="text-slate-400 hover:text-blue-500 bg-slate-50 hover:bg-blue-50 h-8 w-8 rounded-lg"
                           title="Editar"
+                          aria-label="Editar"
                         >
                           <Edit3 size={16} />
                         </Button>
@@ -681,6 +684,7 @@ export const SafetyDocsPage = () => {
                           onClick={() => setDeleteDocId(doc.id)}
                           className="text-slate-400 hover:text-rose-500 bg-slate-50 hover:bg-rose-50 h-8 w-8 rounded-lg"
                           title="Excluir"
+                          aria-label="Excluir"
                         >
                           <Trash2 size={16} />
                         </Button>
