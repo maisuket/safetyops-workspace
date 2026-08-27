@@ -91,7 +91,9 @@ export class RecordsController {
     @Query('type')
     type?: 'trabalho' | 'folga' | 'falta' | 'servico_externo' | 'ajuste_horario',
   ) {
-    return this.recordsService.findAll(page, limit, search, type);
+    // Teto de proteção: a UI nunca pede mais que algumas dezenas por página.
+    const safeLimit = Math.min(Math.max(limit, 1), 100);
+    return this.recordsService.findAll(page, safeLimit, search, type);
   }
 
   @Delete(':id')

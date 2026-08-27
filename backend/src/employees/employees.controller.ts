@@ -45,7 +45,12 @@ export class EmployeesController {
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
   ) {
-    return this.employeesService.findAll(page, limit);
+    // Teto de proteção — o frontend usa limit=1000 como convenção para "buscar
+    // todos os colaboradores" (empresa pequena), mas nada deve poder pedir um
+    // valor arbitrariamente grande (ou negativo, que o Prisma interpretaria
+    // de forma inesperada).
+    const safeLimit = Math.min(Math.max(limit, 1), 2000);
+    return this.employeesService.findAll(page, safeLimit);
   }
 
   @Get('stats')

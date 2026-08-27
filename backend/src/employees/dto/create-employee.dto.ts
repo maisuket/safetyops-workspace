@@ -18,9 +18,9 @@ export class CreateEmployeeDto {
   @MaxLength(100, { message: 'O nome não pode exceder 100 caracteres.' })
   name: string;
 
-  @IsString({ message: 'A matrícula não pode deve ser válida.' })
+  @IsString({ message: 'A matrícula deve ser um texto válido.' })
   @IsNotEmpty({ message: 'O campo matrícula não pode estar vazio.' })
-  @MinLength(1, { message: 'Campo deve ter no mínimo 3 caracteres.' })
-  @MaxLength(100, { message: 'Campo não pode exceder 100 caracteres.' })
+  @MinLength(1, { message: 'O campo matrícula não pode estar vazio.' })
+  @MaxLength(100, { message: 'A matrícula não pode exceder 100 caracteres.' })
   enrollment: string;
 }
