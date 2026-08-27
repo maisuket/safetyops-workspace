@@ -30,6 +30,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 /**
  * ============================================================================
@@ -90,15 +96,24 @@ export const RastreioSaidasPage = () => {
     setTipo("all");
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm("Tem a certeza que deseja excluir este registo de saída?"))
-      return;
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+
+  const handleDelete = (id: string) => {
+    setDeleteTargetId(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTargetId) return;
     try {
-      await SaidasService.remove(id);
-      setResultados((prev) => prev.filter((r) => r.id !== id));
+      await SaidasService.remove(deleteTargetId);
+      setResultados((prev) => prev.filter((r) => r.id !== deleteTargetId));
       toast.success("Registo removido com sucesso.");
     } catch (error) {
-      toast.error("Falha ao excluir. Verifique a conexão.");
+      toast.error(
+        error instanceof Error ? error.message : "Falha ao excluir. Verifique a conexão.",
+      );
+    } finally {
+      setDeleteTargetId(null);
     }
   };
 
@@ -298,6 +313,42 @@ export const RastreioSaidasPage = () => {
           </div>
         )}
       </Card>
+
+      <Dialog
+        open={!!deleteTargetId}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTargetId(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-sm p-0 overflow-hidden bg-white border-none rounded-3xl gap-0">
+          <DialogHeader className="p-6 bg-slate-900 text-white m-0">
+            <DialogTitle className="font-bold text-lg flex items-center gap-2">
+              <Trash2 size={20} /> Excluir Registo de Saída
+            </DialogTitle>
+          </DialogHeader>
+          <div className="p-6 space-y-4">
+            <p className="text-slate-600 text-sm">
+              Tem a certeza que deseja excluir este registo? Esta ação não
+              pode ser desfeita.
+            </p>
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setDeleteTargetId(null)}
+                className="flex-1 rounded-2xl font-bold"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={confirmDelete}
+                className="flex-1 rounded-2xl font-bold bg-rose-600 hover:bg-rose-700 text-white"
+              >
+                Excluir
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

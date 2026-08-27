@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   FileText,
   Download,
@@ -27,6 +27,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 
 /**
@@ -229,11 +235,16 @@ export const SaidasPage = () => {
     setRegistros(registros.filter((r) => r.id !== id));
   };
 
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+
   const handleLimparRegistros = () => {
-    if (window.confirm("Tem a certeza que deseja limpar toda a lista?")) {
-      setRegistros([]);
-      toast.success("Lista de registros limpa.");
-    }
+    setShowClearConfirm(true);
+  };
+
+  const confirmLimparRegistros = () => {
+    setRegistros([]);
+    toast.success("Lista de registros limpa.");
+    setShowClearConfirm(false);
   };
 
   // === LÓGICA DE GERAÇÃO DE PDF (Mantida a sua lógica de VFS) ===
@@ -1184,6 +1195,42 @@ export const SaidasPage = () => {
           </Card>
         </div>
       </div>
+
+      <Dialog
+        open={showClearConfirm}
+        onOpenChange={(open) => {
+          if (!open) setShowClearConfirm(false);
+        }}
+      >
+        <DialogContent className="sm:max-w-sm p-0 overflow-hidden bg-white border-none rounded-3xl gap-0">
+          <DialogHeader className="p-6 bg-slate-900 text-white m-0">
+            <DialogTitle className="font-bold text-lg flex items-center gap-2">
+              <Trash2 size={20} /> Limpar Lista de Impressão
+            </DialogTitle>
+          </DialogHeader>
+          <div className="p-6 space-y-4">
+            <p className="text-slate-600 text-sm">
+              Tem a certeza que deseja limpar toda a lista? Os itens ainda não
+              gerados em PDF/Excel serão perdidos.
+            </p>
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setShowClearConfirm(false)}
+                className="flex-1 rounded-2xl font-bold"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={confirmLimparRegistros}
+                className="flex-1 rounded-2xl font-bold bg-rose-600 hover:bg-rose-700 text-white"
+              >
+                Limpar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
