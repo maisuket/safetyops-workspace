@@ -77,14 +77,18 @@ export const SafetyDocsPage = () => {
     isFetching.current = true;
     try {
       setIsLoading(true);
-      const docData = await DocumentsService.findAll().catch(() => []);
-      setDocuments(
-        docData.length > 0
-          ? docData
-          : JSON.parse(localStorage.getItem("itam_docs_mock") || "[]"),
-      );
+      // Uma lista vazia vinda do backend é um resultado válido (ex: acabou de
+      // excluir o último documento) — não deve ser confundida com falha de rede.
+      const docData = await DocumentsService.findAll();
+      setDocuments(docData);
+      localStorage.setItem("itam_docs_mock", JSON.stringify(docData));
     } catch (error) {
       console.error("Erro ao carregar documentos", error);
+      toast.error(
+        "Falha ao carregar documentos do servidor. Mostrando a última versão salva localmente.",
+      );
+      const cached = localStorage.getItem("itam_docs_mock");
+      if (cached) setDocuments(JSON.parse(cached));
     } finally {
       setIsLoading(false);
       isFetching.current = false;
@@ -94,11 +98,6 @@ export const SafetyDocsPage = () => {
   useEffect(() => {
     loadData();
   }, []);
-
-  useEffect(() => {
-    if (documents.length > 0)
-      localStorage.setItem("itam_docs_mock", JSON.stringify(documents));
-  }, [documents]);
 
   const addDocument = async (docData: any) => {
     try {

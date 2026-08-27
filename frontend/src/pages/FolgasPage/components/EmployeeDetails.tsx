@@ -37,26 +37,37 @@ export const EmployeeDetails: React.FC<EmployeeDetailsProps> = ({
   const [empRecords, setEmpRecords] = useState<FolgaRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchEmployeeRecords = async () => {
-    if (!selectedEmployeeId) return;
-    try {
-      setIsLoading(true);
-      // @ts-ignore
-      const data = await RecordsService.findByEmployee(selectedEmployeeId);
-      setEmpRecords(data as FolgaRecord[]);
-    } catch (error) {
-      console.error("Erro ao carregar histórico do colaborador:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   // Também refaz a busca quando employeeStats muda de referência (ou seja, sempre que
   // a página recarrega os dados após um lançamento/exclusão em qualquer parte da tela),
   // já que deleteRecord só abre o diálogo de confirmação — a exclusão real acontece
   // depois, em FolgasPage, e é isso que atualiza employeeStats.
   useEffect(() => {
+    // Evita que a resposta de uma busca antiga (ex: do colaborador A) sobrescreva
+    // os dados do colaborador B se o utilizador trocar de seleção antes dela chegar.
+    let cancelled = false;
+
+    const fetchEmployeeRecords = async () => {
+      if (!selectedEmployeeId) return;
+      try {
+        setIsLoading(true);
+        // @ts-ignore
+        const data = await RecordsService.findByEmployee(selectedEmployeeId);
+        if (cancelled) return;
+        setEmpRecords(data as FolgaRecord[]);
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Erro ao carregar histórico do colaborador:", error);
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+
     fetchEmployeeRecords();
+
+    return () => {
+      cancelled = true;
+    };
   }, [selectedEmployeeId, employeeStats]);
 
   if (!emp) return null;

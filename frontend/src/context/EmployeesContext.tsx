@@ -7,7 +7,6 @@ import {
   ReactNode,
 } from "react";
 import { EmployeesService, Employee } from "../services/employees.service";
-import { INITIAL_EMPLOYEES } from "../services/data-initial";
 
 interface EmployeesContextValue {
   employees: Employee[];
@@ -29,29 +28,14 @@ export const EmployeesProvider = ({ children }: { children: ReactNode }) => {
     try {
       setIsLoadingEmployees(true);
       const response = await EmployeesService.findAll(1, 1000);
-      const data = response.data || [];
-
-      if (data.length > 0) {
-        setEmployees(data);
-      } else {
-        const mock = localStorage.getItem("itam_employees_mock");
-        if (mock) {
-          setEmployees(JSON.parse(mock));
-        } else {
-          setEmployees(
-            INITIAL_EMPLOYEES.map((name, i) => ({
-              id: `mock-${i}`,
-              name,
-              enrollment: `ITAM${100 + i}`,
-              active: true,
-              createdAt: new Date().toISOString(),
-            })),
-          );
-        }
-      }
-    } catch {
-      const mock = localStorage.getItem("itam_employees_mock");
-      if (mock) setEmployees(JSON.parse(mock));
+      // Uma lista vazia é um resultado válido do backend (ex: todos os
+      // colaboradores foram excluídos) — não deve ser substituída por dados
+      // fictícios, ou uma exclusão real pareceria "não ter funcionado".
+      setEmployees(response.data || []);
+    } catch (error) {
+      // Mantém a última lista já carregada em memória em vez de mostrar uma
+      // tela vazia por uma falha transitória de rede.
+      console.error("Erro ao buscar colaboradores:", error);
     } finally {
       setIsLoadingEmployees(false);
     }
