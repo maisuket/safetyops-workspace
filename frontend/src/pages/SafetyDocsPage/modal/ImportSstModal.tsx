@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   ShieldCheck,
 } from "lucide-react";
+import { toast } from "sonner";
 import { DocumentsService } from "../../../services/documents.service";
 import {
   Dialog,
@@ -20,8 +21,23 @@ import {
 interface ImportSSTModalProps {
   closeModal: () => void;
   employees: any[];
+  existingDocuments: any[];
   onImportSuccess: () => void;
 }
+
+// Chave usada para reconhecer que um documento já existe (na base ou no
+// próprio arquivo sendo importado), evitando duplicatas.
+const documentKey = (employeeId: string, docType: string, expiryDate: string) =>
+  `${employeeId}-${(docType || "").trim().toUpperCase()}-${String(expiryDate).slice(0, 10)}`;
+
+const isValidCalendarDate = (year: number, month: number, day: number) => {
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+};
 
 interface ParsedRecord {
   employeeId: string;
@@ -33,12 +49,14 @@ interface ParsedRecord {
 export const ImportSSTModal: React.FC<ImportSSTModalProps> = ({
   closeModal,
   employees,
+  existingDocuments,
   onImportSuccess,
 }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [recordsToImport, setRecordsToImport] = useState<ParsedRecord[]>([]);
   const [unmatchedEmployees, setUnmatchedEmployees] = useState<string[]>([]);
+  const [duplicateCount, setDuplicateCount] = useState(0);
   const [importProgress, setImportProgress] = useState(0);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -71,25 +89,32 @@ export const ImportSSTModal: React.FC<ImportSSTModalProps> = ({
   const normalizeDate = (value: any): string | null => {
     if (!value) return null;
 
-    // ISO
+    // ISO — formato oficialmente pedido ao utilizador (ver instruções no modal)
     if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
-      return value;
+      const [y, m, d] = value.split("-").map(Number);
+      return isValidCalendarDate(y, m, d) ? value : null;
     }
 
     // Excel number
     if (typeof value === "number") {
-      const base = new Date(1899, 11, 30);
+      const base = new Date(Date.UTC(1899, 11, 30));
       const date = new Date(base.getTime() + value * 86400000);
       return date.toISOString().split("T")[0];
     }
 
-    // DD/MM/YYYY
+    // DD/MM/YYYY — fallback para quem não seguiu as instruções de formato.
+    // Validamos que os componentes formam uma data real (evita, por exemplo,
+    // aceitar silenciosamente "31/02/2026" ou trocar dia/mês sem perceber).
     if (typeof value === "string") {
       const parts = value.split(/[\/\-]/);
 
       if (parts.length === 3) {
         const [d, m, y] = parts;
         if (y.length === 4) {
+          const day = Number(d);
+          const month = Number(m);
+          const year = Number(y);
+          if (!isValidCalendarDate(year, month, day)) return null;
           return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
         }
       }
@@ -120,7 +145,15 @@ export const ImportSSTModal: React.FC<ImportSSTModalProps> = ({
 
     const parsed: any[] = [];
     const unmatched = new Set<string>();
-    const seen = new Set<string>(); // evita duplicados
+    let duplicates = 0;
+    // Pré-carregado com os documentos já existentes na base: evita recriar
+    // duplicatas se o mesmo arquivo (ou uma reimportação parcial após uma
+    // falha no meio do processo) for importado de novo.
+    const seen = new Set<string>(
+      existingDocuments.map((doc) =>
+        documentKey(doc.employeeId, doc.docType, String(doc.expiryDate)),
+      ),
+    );
 
     for (const row of rows) {
       const name = row[employeeCol]?.trim();
@@ -141,8 +174,11 @@ export const ImportSSTModal: React.FC<ImportSSTModalProps> = ({
         continue;
       }
 
-      const uniqueKey = `${employee.id}-${doc}-${normalizedDate}`;
-      if (seen.has(uniqueKey)) continue;
+      const uniqueKey = documentKey(employee.id, doc, normalizedDate);
+      if (seen.has(uniqueKey)) {
+        duplicates++;
+        continue;
+      }
 
       seen.add(uniqueKey);
 
@@ -157,6 +193,7 @@ export const ImportSSTModal: React.FC<ImportSSTModalProps> = ({
     return {
       parsed,
       unmatched: Array.from(unmatched),
+      duplicates,
     };
   };
 
@@ -168,12 +205,13 @@ export const ImportSSTModal: React.FC<ImportSSTModalProps> = ({
     setIsProcessing(true);
 
     try {
-      const { parsed, unmatched } = await parseFile(file, employees);
+      const { parsed, unmatched, duplicates } = await parseFile(file, employees);
 
       setRecordsToImport(parsed);
       setUnmatchedEmployees(unmatched);
+      setDuplicateCount(duplicates);
     } catch (err) {
-      alert("Erro ao processar arquivo.");
+      toast.error("Erro ao processar arquivo.");
       console.error(err);
     } finally {
       setIsProcessing(false);
@@ -225,13 +263,13 @@ export const ImportSSTModal: React.FC<ImportSSTModalProps> = ({
         setImportProgress(Math.round(((i + 1) / recordsToImport.length) * 100));
       }
 
-      alert(
+      toast.success(
         `Sucesso! ${successCount} prontuários importados para a base de dados.`,
       );
       onImportSuccess();
       closeModal();
     } catch (error) {
-      alert(
+      toast.error(
         "Houve um erro de rede ao tentar salvar alguns registos. Verifique a consola.",
       );
       console.error(error);
@@ -359,6 +397,14 @@ export const ImportSSTModal: React.FC<ImportSSTModalProps> = ({
                   </p>
                 </div>
               </div>
+
+              {duplicateCount > 0 && (
+                <div className="bg-slate-100 border border-slate-200 rounded-xl p-4 text-xs font-bold text-slate-500">
+                  ℹ {duplicateCount} registo(s) do arquivo já existem na base
+                  de dados (mesmo colaborador, documento e vencimento) e foram
+                  ignorados automaticamente para não duplicar.
+                </div>
+              )}
 
               {unmatchedEmployees.length > 0 && (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">

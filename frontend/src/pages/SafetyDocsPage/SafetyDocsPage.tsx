@@ -889,6 +889,7 @@ export const SafetyDocsPage = () => {
         <ImportSSTModal
           closeModal={() => setIsImportModalOpen(false)}
           employees={employees}
+          existingDocuments={documents}
           onImportSuccess={() => loadData()}
         />
       )}
