@@ -12,6 +12,7 @@ import {
   Hourglass,
 } from "lucide-react";
 import { Employee, FolgaRecord } from "../FolgasPage";
+import { isBancoHorasFolga } from "../folgaUtils";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -164,9 +165,15 @@ export const HistoryComponent: React.FC<HistoryComponentProps> = ({
                         <TrendingUp size={14} /> Crédito
                       </span>
                     ) : record.type === "folga" ? (
-                      <span className="flex items-center gap-1 text-amber-600 text-sm font-medium">
-                        <Clock size={14} /> Folga
-                      </span>
+                      isBancoHorasFolga(record.refDate) ? (
+                        <span className="flex items-center gap-1 text-teal-600 text-sm font-medium">
+                          <Clock size={14} /> Banco de Horas
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-amber-600 text-sm font-medium">
+                          <Clock size={14} /> Folga Remunerada
+                        </span>
+                      )
                     ) : record.type === "falta" ? (
                       <span className="flex items-center gap-1 text-rose-600 text-sm font-medium">
                         <AlertTriangle size={14} /> Falta
@@ -191,7 +198,11 @@ export const HistoryComponent: React.FC<HistoryComponentProps> = ({
                         : "Sem justificativa"
                       : [
                           record.description,
-                          record.refDate ? `Ref: ${record.refDate}` : null,
+                          record.type === "folga" && isBancoHorasFolga(record.refDate)
+                            ? "Compensação genérica do banco de horas"
+                            : record.refDate
+                              ? `Ref: ${record.refDate}`
+                              : null,
                           record.justification
                             ? `Justificativa: ${record.justification}`
                             : null,

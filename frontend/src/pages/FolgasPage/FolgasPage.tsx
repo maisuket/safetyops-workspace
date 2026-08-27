@@ -17,6 +17,7 @@ import { Dashboard } from "./components/Dashboard";
 import { HistoryComponent } from "./components/History";
 import { LaunchModal } from "./modal/LaunchModal";
 import { ReportModal } from "./modal/ReportsModal";
+import { isBancoHorasFolga } from "./folgaUtils";
 import { Button } from "@/components/ui/button";
 import { PageTabs } from "@/components/ui/page-tabs";
 import { toast } from "sonner";
@@ -403,20 +404,27 @@ export const FolgasPage = () => {
   // folga e falta afetam o banco de horas, serviço externo e ajuste de horário são só informativos.
   const PERIOD_REPORT_TYPES = ["folga", "falta", "servico_externo", "ajuste_horario"];
 
-  const tipoLabel = (type: string) =>
-    type === "falta"
+  const tipoLabel = (f: FolgaRecord) =>
+    f.type === "falta"
       ? "Falta"
-      : type === "servico_externo"
+      : f.type === "servico_externo"
         ? "Serviço Externo"
-        : type === "ajuste_horario"
+        : f.type === "ajuste_horario"
           ? "Ajuste de Horário"
-          : "Folga";
+          : isBancoHorasFolga(f.refDate)
+            ? "Folga (Banco de Horas)"
+            : "Folga Remunerada";
 
   const referenciaLabel = (f: FolgaRecord) => {
     if (f.type === "falta" || f.type === "servico_externo") {
       return f.justification
         ? `Justificativa: ${f.justification}`
         : "Sem justificativa";
+    }
+    if (f.type === "folga" && isBancoHorasFolga(f.refDate)) {
+      return f.justification
+        ? `Compensação genérica do banco de horas | Justificativa: ${f.justification}`
+        : "Compensação genérica do banco de horas";
     }
     return (
       [
@@ -463,7 +471,7 @@ export const FolgasPage = () => {
           return [
             emp?.enrollment || "N/A",
             emp?.name || "Desconhecido",
-            tipoLabel(f.type),
+            tipoLabel(f),
             new Date(f.date).toLocaleDateString("pt-BR", { timeZone: "UTC" }),
             referenciaLabel(f),
           ];
@@ -478,6 +486,8 @@ export const FolgasPage = () => {
             Falta: [220, 38, 38],
             "Serviço Externo": [2, 132, 199],
             "Ajuste de Horário": [124, 58, 237],
+            "Folga Remunerada": [245, 158, 11],
+            "Folga (Banco de Horas)": [13, 148, 136],
           };
           const color = colors[data.cell.raw as string];
           if (color) data.cell.styles.textColor = color;
@@ -513,7 +523,7 @@ export const FolgasPage = () => {
         return {
           Matrícula: emp?.enrollment || "N/A",
           Colaborador: emp?.name || "Desconhecido",
-          Tipo: tipoLabel(f.type),
+          Tipo: tipoLabel(f),
           Data: new Date(f.date).toLocaleDateString("pt-BR", { timeZone: "UTC" }),
           "Referência / Justificativa": referenciaLabel(f),
         };

@@ -199,10 +199,50 @@ export class EmployeesService {
         statsMap.set(agg.employeeId, stat);
       });
 
+      // O saldo pendente precisa refletir exatamente os mesmos domingos marcados como
+      // "Disponível" na tela de detalhes do colaborador: um domingo trabalhado só é
+      // considerado compensado se alguma folga referenciar a sua data explicitamente.
+      // Uma subtração simples (total de trabalhos - total de folgas) diverge sempre que
+      // existir uma folga genérica sem domingo vinculado (ex: "baixar banco de horas"),
+      // pois ela reduziria o saldo sem corresponder a nenhum domingo específico.
+      const workAndLeaveRecords = await this.prisma.record.findMany({
+        where: { type: { in: ['trabalho', 'folga'] } },
+        select: { employeeId: true, type: true, date: true, refDate: true },
+      });
+
+      const worksByEmployee = new Map<string, Date[]>();
+      const leaveRefsByEmployee = new Map<string, string[]>();
+      workAndLeaveRecords.forEach((r) => {
+        if (r.type === 'trabalho') {
+          const list = worksByEmployee.get(r.employeeId) || [];
+          list.push(r.date);
+          worksByEmployee.set(r.employeeId, list);
+        } else if (r.refDate) {
+          const list = leaveRefsByEmployee.get(r.employeeId) || [];
+          list.push(r.refDate);
+          leaveRefsByEmployee.set(r.employeeId, list);
+        }
+      });
+
+      const toDateString = (d: Date) => {
+        const day = String(d.getUTCDate()).padStart(2, '0');
+        const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+        const year = d.getUTCFullYear();
+        return `${day}/${month}/${year}`;
+      };
+
       const employeeStats = employees.map((emp) => {
         const empStats =
           statsMap.get(emp.id) ||
           { earned: 0, taken: 0, absences: 0, externalService: 0, scheduleAdjustments: 0 };
+
+        const works = worksByEmployee.get(emp.id) || [];
+        const leaveRefs = leaveRefsByEmployee.get(emp.id) || [];
+        const pendingBalance = works.filter((workDate) => {
+          const dateString = toDateString(workDate);
+          return !leaveRefs.some((ref) => ref.includes(dateString));
+        }).length;
+
         return {
           ...emp,
           earned: empStats.earned,
@@ -210,7 +250,7 @@ export class EmployeesService {
           absences: empStats.absences,
           externalService: empStats.externalService,
           scheduleAdjustments: empStats.scheduleAdjustments,
-          balance: empStats.earned - empStats.taken,
+          balance: pendingBalance,
         };
       });
 
