@@ -29,6 +29,10 @@ model Record {
   employee      Employee @relation(fields: [employeeId], references: [id])
   employeeId    String
   createdAt     DateTime @default(now())
+
+  @@index([employeeId])
+  @@index([date])
+  @@index([type])
 }
 
 model SaidaRecord {
@@ -42,6 +46,10 @@ model SaidaRecord {
   employee       Employee  @relation(fields: [employeeId], references: [id])
   employeeId     String
   createdAt      DateTime  @default(now()) // momento real da emissão do formulário
+
+  @@index([employeeId])
+  @@index([dataOcorrencia])
+  @@index([createdAt])
 }
 
 model Document {
@@ -52,4 +60,7 @@ model Document {
   employee   Employee @relation(fields: [employeeId], references: [id])
   employeeId String
   createdAt  DateTime @default(now())
+
+  @@index([employeeId])
+  @@index([expiryDate])
 }
