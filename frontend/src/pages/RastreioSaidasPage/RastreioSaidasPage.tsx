@@ -30,12 +30,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 
 /**
  * ============================================================================
@@ -162,6 +158,7 @@ export const RastreioSaidasPage = () => {
               onChange={(e) => setStartDate(e.target.value)}
               className="bg-slate-50 rounded-xl text-sm"
               title="Data inicial"
+              aria-label="Data inicial"
             />
             <Input
               type="date"
@@ -169,6 +166,7 @@ export const RastreioSaidasPage = () => {
               onChange={(e) => setEndDate(e.target.value)}
               className="bg-slate-50 rounded-xl text-sm"
               title="Data final"
+              aria-label="Data final"
             />
           </div>
 
@@ -288,6 +286,7 @@ export const RastreioSaidasPage = () => {
                           onClick={() => handleDelete(r.id)}
                           className="text-slate-400 hover:text-rose-500 hover:bg-rose-50"
                           title="Excluir Registo"
+                          aria-label="Excluir Registo"
                         >
                           <Trash2 size={18} />
                         </Button>
@@ -298,8 +297,12 @@ export const RastreioSaidasPage = () => {
 
               {!isLoading && resultados.length === 0 && (
                 <TableRow className="hover:bg-transparent">
-                  <TableCell colSpan={6} className="py-12 text-center text-slate-400">
-                    Nenhuma saída encontrada com estes filtros.
+                  <TableCell colSpan={6} className="py-12">
+                    <EmptyState
+                      icon={<Search size={32} className="text-slate-300" />}
+                      title="Nenhuma saída encontrada"
+                      description="Não foi possível encontrar registos com estes filtros."
+                    />
                   </TableCell>
                 </TableRow>
               )}
@@ -314,41 +317,17 @@ export const RastreioSaidasPage = () => {
         )}
       </Card>
 
-      <Dialog
+      <ConfirmDialog
         open={!!deleteTargetId}
         onOpenChange={(open) => {
           if (!open) setDeleteTargetId(null);
         }}
-      >
-        <DialogContent className="sm:max-w-sm p-0 overflow-hidden bg-white border-none rounded-3xl gap-0">
-          <DialogHeader className="p-6 bg-slate-900 text-white m-0">
-            <DialogTitle className="font-bold text-lg flex items-center gap-2">
-              <Trash2 size={20} /> Excluir Registo de Saída
-            </DialogTitle>
-          </DialogHeader>
-          <div className="p-6 space-y-4">
-            <p className="text-slate-600 text-sm">
-              Tem a certeza que deseja excluir este registo? Esta ação não
-              pode ser desfeita.
-            </p>
-            <div className="flex gap-3">
-              <Button
-                variant="outline"
-                onClick={() => setDeleteTargetId(null)}
-                className="flex-1 rounded-2xl font-bold"
-              >
-                Cancelar
-              </Button>
-              <Button
-                onClick={confirmDelete}
-                className="flex-1 rounded-2xl font-bold bg-rose-600 hover:bg-rose-700 text-white"
-              >
-                Excluir
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+        title="Excluir Registo de Saída"
+        icon={<Trash2 size={20} />}
+        description="Tem a certeza que deseja excluir este registo? Esta ação não pode ser desfeita."
+        confirmLabel="Excluir"
+        onConfirm={confirmDelete}
+      />
     </div>
   );
 };

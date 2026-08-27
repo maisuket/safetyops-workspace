@@ -33,6 +33,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 import { toast } from "sonner";
 
 export const EquipePage = () => {
@@ -234,6 +236,7 @@ export const EquipePage = () => {
                         onClick={() => handleToggleStatus(emp.id, emp.active)}
                         className={emp.active ? "text-amber-500 hover:text-amber-600 hover:bg-amber-50" : "text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50"}
                         title={emp.active ? "Desativar" : "Ativar"}
+                        aria-label={emp.active ? "Desativar" : "Ativar"}
                       >
                         {emp.active ? <ToggleLeft size={20} /> : <ToggleRight size={20} />}
                       </Button>
@@ -243,6 +246,7 @@ export const EquipePage = () => {
                         onClick={() => handleOpenModal(emp)}
                         className="text-blue-500 hover:text-blue-600 hover:bg-blue-50"
                         title="Editar"
+                        aria-label="Editar"
                       >
                         <Edit3 size={20} />
                       </Button>
@@ -252,6 +256,7 @@ export const EquipePage = () => {
                         onClick={() => handleDelete(emp.id)}
                         className="text-rose-400 hover:text-rose-600 hover:bg-rose-50"
                         title="Excluir"
+                        aria-label="Excluir"
                       >
                         <Trash2 size={20} />
                       </Button>
@@ -262,18 +267,11 @@ export const EquipePage = () => {
               {filteredEmployees.length === 0 && (
                 <TableRow className="hover:bg-transparent">
                   <TableCell colSpan={3} className="py-16 text-center">
-                    <div className="flex flex-col items-center justify-center text-slate-400 bg-slate-50/50 rounded-2xl border-2 border-dashed border-slate-200 mx-6 p-8">
-                      <div className="bg-white p-4 rounded-full shadow-sm mb-4">
-                        <Users size={32} className="text-slate-300" />
-                      </div>
-                      <h3 className="text-lg font-bold text-slate-700 mb-1">
-                        Nenhum colaborador
-                      </h3>
-                      <p className="text-sm text-slate-500 text-center max-w-sm">
-                        Não foi possível encontrar registos com os filtros
-                        atuais.
-                      </p>
-                    </div>
+                    <EmptyState
+                      icon={<Users size={32} className="text-slate-300" />}
+                      title="Nenhum colaborador"
+                      description="Não foi possível encontrar registos com os filtros atuais."
+                    />
                   </TableCell>
                 </TableRow>
               )}
@@ -283,28 +281,17 @@ export const EquipePage = () => {
       </Card>
 
       {/* DIALOG DE CONFIRMAÇÃO DE EXCLUSÃO */}
-      <Dialog open={!!deleteTargetId} onOpenChange={(open) => { if (!open) setDeleteTargetId(null); }}>
-        <DialogContent className="sm:max-w-sm p-0 overflow-hidden bg-white border-none rounded-3xl gap-0">
-          <DialogHeader className="p-6 bg-rose-600 text-white m-0">
-            <DialogTitle className="font-bold text-lg flex items-center gap-2">
-              <Trash2 size={20} /> Excluir Colaborador
-            </DialogTitle>
-          </DialogHeader>
-          <div className="p-6 space-y-4">
-            <p className="text-slate-600 text-sm">
-              Atenção: excluir um colaborador apagará todo o seu histórico de registros. Esta ação é irreversível.
-            </p>
-            <div className="flex gap-3">
-              <Button variant="outline" onClick={() => setDeleteTargetId(null)} className="flex-1 rounded-2xl font-bold">
-                Cancelar
-              </Button>
-              <Button onClick={confirmDelete} className="flex-1 rounded-2xl font-bold bg-rose-600 hover:bg-rose-700 text-white">
-                Excluir
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={!!deleteTargetId}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTargetId(null);
+        }}
+        title="Excluir Colaborador"
+        icon={<Trash2 size={20} />}
+        description="Só é possível excluir colaboradores sem nenhum lançamento vinculado (folgas, saídas ou documentos). Se este colaborador já tiver histórico, desative-o em vez de excluir — esta ação é irreversível."
+        confirmLabel="Excluir"
+        onConfirm={confirmDelete}
+      />
 
       {/* MODAL DE CADASTRO/EDIÇÃO */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>

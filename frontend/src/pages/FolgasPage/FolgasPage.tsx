@@ -3,12 +3,7 @@ import { Plus, Loader2, Calendar, Trash2 } from "lucide-react";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EmployeesService } from "../../services/employees.service";
 import { RecordsService } from "../../services/records.service";
 import { useEmployees } from "../../context/EmployeesContext";
@@ -619,26 +614,17 @@ export const FolgasPage = () => {
       </div>
 
       {/* DIALOG DE CONFIRMAÇÃO DE EXCLUSÃO DE LANÇAMENTO */}
-      <Dialog open={!!deleteRecordId} onOpenChange={(open) => { if (!open) setDeleteRecordId(null); }}>
-        <DialogContent className="sm:max-w-sm p-0 overflow-hidden bg-white border-none rounded-3xl gap-0">
-          <DialogHeader className="p-6 bg-rose-600 text-white m-0">
-            <DialogTitle className="font-bold text-lg flex items-center gap-2">
-              <Trash2 size={20} /> Excluir Lançamento
-            </DialogTitle>
-          </DialogHeader>
-          <div className="p-6 space-y-4">
-            <p className="text-slate-600 text-sm">Excluir este lançamento permanentemente? O saldo do colaborador será recalculado.</p>
-            <div className="flex gap-3">
-              <Button variant="outline" onClick={() => setDeleteRecordId(null)} className="flex-1 rounded-2xl font-bold">
-                Cancelar
-              </Button>
-              <Button onClick={confirmDeleteRecord} className="flex-1 rounded-2xl font-bold bg-rose-600 hover:bg-rose-700 text-white">
-                Excluir
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={!!deleteRecordId}
+        onOpenChange={(open) => {
+          if (!open) setDeleteRecordId(null);
+        }}
+        title="Excluir Lançamento"
+        icon={<Trash2 size={20} />}
+        description="Excluir este lançamento permanentemente? O saldo do colaborador será recalculado."
+        confirmLabel="Excluir"
+        onConfirm={confirmDeleteRecord}
+      />
 
       {isModalOpen && (
         <LaunchModal

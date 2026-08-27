@@ -1,14 +1,18 @@
+import { useMemo, useState } from "react";
 import {
   Calendar,
   Clock,
   Download,
   FileText,
+  Search,
   TrendingUp,
   Users,
 } from "lucide-react";
 import { EmployeeStat } from "../FolgasPage";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Table,
   TableBody,
@@ -41,7 +45,20 @@ export const Dashboard: React.FC<DashboardProps> = ({
   setIsReportModalOpen,
   exportToExcel,
   exportToPDF,
-}) => (
+}) => {
+  const [search, setSearch] = useState("");
+
+  const filteredStats = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return employeeStats;
+    return employeeStats.filter(
+      (emp) =>
+        emp.name.toLowerCase().includes(term) ||
+        (emp.enrollment || "").toLowerCase().includes(term),
+    );
+  }, [employeeStats, search]);
+
+  return (
   <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       <Card className="rounded-2xl border-slate-100 shadow-sm">
@@ -82,30 +99,44 @@ export const Dashboard: React.FC<DashboardProps> = ({
     </div>
 
     <Card className="rounded-2xl border-slate-100 shadow-sm overflow-hidden">
-      <div className="p-6 border-b border-slate-50 flex flex-col sm:flex-row justify-between items-center gap-4">
-        <h2 className="text-lg font-bold text-slate-800">Ranking de Saldos</h2>
-        <div className="flex gap-2 w-full sm:w-auto flex-wrap justify-end">
-          <Button
-            variant="outline"
-            onClick={() => setIsReportModalOpen(true)}
-            className="flex-1 sm:flex-none text-amber-600 hover:text-amber-700 hover:bg-amber-50 border-amber-200"
-          >
-            <Calendar size={18} /> Lançamentos
-          </Button>
-          <Button
-            variant="outline"
-            onClick={exportToExcel}
-            className="flex-1 sm:flex-none text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 border-emerald-200"
-          >
-            <Download size={18} /> Excel
-          </Button>
-          <Button
-            variant="outline"
-            onClick={exportToPDF}
-            className="flex-1 sm:flex-none text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200"
-          >
-            <FileText size={18} /> PDF
-          </Button>
+      <div className="p-6 border-b border-slate-50 flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+          <h2 className="text-lg font-bold text-slate-800">Ranking de Saldos</h2>
+          <div className="flex gap-2 w-full sm:w-auto flex-wrap justify-end">
+            <Button
+              variant="outline"
+              onClick={() => setIsReportModalOpen(true)}
+              className="flex-1 sm:flex-none text-amber-600 hover:text-amber-700 hover:bg-amber-50 border-amber-200"
+            >
+              <Calendar size={18} /> Lançamentos
+            </Button>
+            <Button
+              variant="outline"
+              onClick={exportToExcel}
+              className="flex-1 sm:flex-none text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 border-emerald-200"
+            >
+              <Download size={18} /> Excel
+            </Button>
+            <Button
+              variant="outline"
+              onClick={exportToPDF}
+              className="flex-1 sm:flex-none text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200"
+            >
+              <FileText size={18} /> PDF
+            </Button>
+          </div>
+        </div>
+        <div className="relative w-full sm:w-72">
+          <Search
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+            size={16}
+          />
+          <Input
+            placeholder="Buscar colaborador ou matrícula..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-9 bg-slate-50 rounded-xl text-sm"
+          />
         </div>
       </div>
       <div className="overflow-x-auto">
@@ -134,7 +165,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {employeeStats.map((emp) => (
+            {filteredStats.map((emp) => (
               <TableRow
                 key={emp.id}
                 className="hover:bg-slate-50 transition-colors"
@@ -165,7 +196,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 </TableCell>
                 <TableCell className="text-center">
                   <span
-                    className={`font-bold ${emp.balance > 2 ? "text-amber-600" : emp.balance > 0 ? "text-emerald-600" : "text-slate-400"}`}
+                    className={`font-bold ${emp.balance > 3 ? "text-rose-600" : emp.balance > 0 ? "text-emerald-600" : "text-slate-400"}`}
                   >
                     {emp.balance}
                   </span>
@@ -187,13 +218,18 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 </TableCell>
               </TableRow>
             ))}
-            {employeeStats.length === 0 && !isLoading && (
+            {filteredStats.length === 0 && !isLoading && (
               <TableRow>
-                <TableCell
-                  colSpan={9}
-                  className="py-12 text-center text-slate-400"
-                >
-                  Nenhum colaborador encontrado.
+                <TableCell colSpan={9} className="py-12">
+                  <EmptyState
+                    icon={<Users size={32} className="text-slate-300" />}
+                    title="Nenhum colaborador encontrado"
+                    description={
+                      search
+                        ? "Não foi possível encontrar colaboradores com esse termo de busca."
+                        : "Ainda não há colaboradores cadastrados."
+                    }
+                  />
                 </TableCell>
               </TableRow>
             )}
@@ -202,4 +238,5 @@ export const Dashboard: React.FC<DashboardProps> = ({
       </div>
     </Card>
   </div>
-);
+  );
+};

@@ -27,12 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
 
 /**
@@ -1127,6 +1122,7 @@ export const SaidasPage = () => {
                   onClick={handleLimparRegistros}
                   className="text-rose-500 hover:bg-rose-50 hover:text-rose-600 rounded-lg h-10 w-10"
                   title="Limpar Lista"
+                  aria-label="Limpar Lista"
                 >
                   <Trash2 size={18} />
                 </Button>
@@ -1158,6 +1154,8 @@ export const SaidasPage = () => {
                       size="icon"
                       onClick={() => handleRemoverRegistro(r.id)}
                       className="absolute top-2 right-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8"
+                      title="Remover da Lista"
+                      aria-label="Remover da Lista"
                     >
                       <X size={16} />
                     </Button>
@@ -1196,41 +1194,17 @@ export const SaidasPage = () => {
         </div>
       </div>
 
-      <Dialog
+      <ConfirmDialog
         open={showClearConfirm}
         onOpenChange={(open) => {
           if (!open) setShowClearConfirm(false);
         }}
-      >
-        <DialogContent className="sm:max-w-sm p-0 overflow-hidden bg-white border-none rounded-3xl gap-0">
-          <DialogHeader className="p-6 bg-slate-900 text-white m-0">
-            <DialogTitle className="font-bold text-lg flex items-center gap-2">
-              <Trash2 size={20} /> Limpar Lista de Impressão
-            </DialogTitle>
-          </DialogHeader>
-          <div className="p-6 space-y-4">
-            <p className="text-slate-600 text-sm">
-              Tem a certeza que deseja limpar toda a lista? Os itens ainda não
-              gerados em PDF/Excel serão perdidos.
-            </p>
-            <div className="flex gap-3">
-              <Button
-                variant="outline"
-                onClick={() => setShowClearConfirm(false)}
-                className="flex-1 rounded-2xl font-bold"
-              >
-                Cancelar
-              </Button>
-              <Button
-                onClick={confirmLimparRegistros}
-                className="flex-1 rounded-2xl font-bold bg-rose-600 hover:bg-rose-700 text-white"
-              >
-                Limpar
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+        title="Limpar Lista de Impressão"
+        icon={<Trash2 size={20} />}
+        description="Tem a certeza que deseja limpar toda a lista? Os itens ainda não gerados em PDF/Excel serão perdidos."
+        confirmLabel="Limpar"
+        onConfirm={confirmLimparRegistros}
+      />
     </div>
   );
 };

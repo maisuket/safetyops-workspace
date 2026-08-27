@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Employee, FolgaRecord } from "../FolgasPage";
 import { isBancoHorasFolga } from "../folgaUtils";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -212,6 +213,7 @@ export const HistoryComponent: React.FC<HistoryComponentProps> = ({
                       onClick={() => deleteRecord(record.id)}
                       className="text-slate-400 hover:text-rose-500 hover:bg-rose-50"
                       title="Excluir Lançamento"
+                      aria-label="Excluir Lançamento"
                     >
                       <Trash2 size={18} />
                     </Button>
@@ -222,11 +224,12 @@ export const HistoryComponent: React.FC<HistoryComponentProps> = ({
 
             {records.length === 0 && !isLoading && (
               <TableRow className="hover:bg-transparent">
-                <TableCell
-                  colSpan={5}
-                  className="py-12 text-center text-slate-400"
-                >
-                  Nenhum registo encontrado com estes filtros.
+                <TableCell colSpan={5} className="py-12">
+                  <EmptyState
+                    icon={<Search size={32} className="text-slate-300" />}
+                    title="Nenhum registo encontrado"
+                    description="Não foi possível encontrar lançamentos com estes filtros."
+                  />
                 </TableCell>
               </TableRow>
             )}
