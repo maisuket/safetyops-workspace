@@ -1,8 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Plus, Loader2, Calendar, Trash2 } from "lucide-react";
-import * as XLSX from "xlsx";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EmployeesService } from "../../services/employees.service";
 import { RecordsService } from "../../services/records.service";
@@ -117,15 +114,17 @@ export const FolgasPage = () => {
       setIsLoading(true);
       // Estatísticas de folgas por colaborador (específicas desta tela — a
       // lista de colaboradores em si vem do EmployeesContext compartilhado)
-      const statsData = await EmployeesService.getStats();
-
-      // Busca os registos paginados
-      const { data: recsData, total } = await RecordsService.findAll(
-        currentPage,
-        20,
-        historySearchTerm || undefined,
-        historyFilterType === "all" ? undefined : (historyFilterType as any),
-      );
+      // e o histórico paginado são independentes entre si — buscados em
+      // paralelo em vez de em série para não somar as duas latências.
+      const [statsData, { data: recsData, total }] = await Promise.all([
+        EmployeesService.getStats(),
+        RecordsService.findAll(
+          currentPage,
+          20,
+          historySearchTerm || undefined,
+          historyFilterType === "all" ? undefined : (historyFilterType as any),
+        ),
+      ]);
 
       // Se a página mudou ou o componente desmontou antes do fim da requisição, descarta os dados
       if (isMounted && !isMounted()) return;
@@ -356,7 +355,8 @@ export const FolgasPage = () => {
     setSearchTerm("");
   };
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
+    const XLSX = await import("xlsx");
     const data = employeeStats.map((emp) => ({
       Matrícula: emp.enrollment || "N/A",
       Nome: emp.name,
@@ -373,7 +373,11 @@ export const FolgasPage = () => {
     XLSX.writeFile(wb, `ITAM_Controle_Folgas_${new Date().toLocaleDateString().replace(/\//g, "-")}.xlsx`);
   };
 
-  const exportToPDF = () => {
+  const exportToPDF = async () => {
+    const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+      import("jspdf"),
+      import("jspdf-autotable"),
+    ]);
     const doc = new jsPDF();
     doc.text("ITAM - Assistência Técnica - Controle de Folgas", 14, 15);
     doc.setFontSize(10);
@@ -435,6 +439,10 @@ export const FolgasPage = () => {
 
   const generateFolgasReport = async (e: React.FormEvent) => {
     e.preventDefault();
+    const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+      import("jspdf"),
+      import("jspdf-autotable"),
+    ]);
     const doc = new jsPDF();
 
     const startDateStr = new Date(reportPeriod.start).toLocaleDateString("pt-BR", { timeZone: "UTC" });
@@ -500,7 +508,10 @@ export const FolgasPage = () => {
       .replace(/\//g, "-");
 
     try {
-      const filteredRecords = await fetchPeriodReportRecords();
+      const [filteredRecords, XLSX] = await Promise.all([
+        fetchPeriodReportRecords(),
+        import("xlsx"),
+      ]);
 
       if (filteredRecords.length === 0) {
         toast.info("Nenhum lançamento encontrado para o período selecionado.");

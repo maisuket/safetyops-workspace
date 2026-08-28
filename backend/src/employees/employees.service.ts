@@ -187,17 +187,28 @@ export class EmployeesService {
    */
   async getStats(): Promise<any[]> {
     try {
-      const employees = await this.prisma.employee.findMany({
-        where: { active: true },
-        orderBy: { name: 'asc' },
-      });
-
-      const aggregations = await this.prisma.record.groupBy({
-        by: ['employeeId', 'type'],
-        _count: {
-          id: true,
-        },
-      });
+      const [employees, aggregations, workAndLeaveRecords] = await Promise.all([
+        this.prisma.employee.findMany({
+          where: { active: true },
+          orderBy: { name: 'asc' },
+        }),
+        this.prisma.record.groupBy({
+          by: ['employeeId', 'type'],
+          _count: {
+            id: true,
+          },
+        }),
+        // O saldo pendente precisa refletir exatamente os mesmos domingos marcados como
+        // "Disponível" na tela de detalhes do colaborador: um domingo trabalhado só é
+        // considerado compensado se alguma folga referenciar a sua data explicitamente.
+        // Uma subtração simples (total de trabalhos - total de folgas) diverge sempre que
+        // existir uma folga genérica sem domingo vinculado (ex: "baixar banco de horas"),
+        // pois ela reduziria o saldo sem corresponder a nenhum domingo específico.
+        this.prisma.record.findMany({
+          where: { type: { in: ['trabalho', 'folga'] } },
+          select: { employeeId: true, type: true, date: true, refDate: true },
+        }),
+      ]);
 
       const statsMap = new Map<
         string,
@@ -225,17 +236,6 @@ export class EmployeesService {
           stat.scheduleAdjustments = agg._count.id;
         }
         statsMap.set(agg.employeeId, stat);
-      });
-
-      // O saldo pendente precisa refletir exatamente os mesmos domingos marcados como
-      // "Disponível" na tela de detalhes do colaborador: um domingo trabalhado só é
-      // considerado compensado se alguma folga referenciar a sua data explicitamente.
-      // Uma subtração simples (total de trabalhos - total de folgas) diverge sempre que
-      // existir uma folga genérica sem domingo vinculado (ex: "baixar banco de horas"),
-      // pois ela reduziria o saldo sem corresponder a nenhum domingo específico.
-      const workAndLeaveRecords = await this.prisma.record.findMany({
-        where: { type: { in: ['trabalho', 'folga'] } },
-        select: { employeeId: true, type: true, date: true, refDate: true },
       });
 
       const worksByEmployee = new Map<string, Date[]>();
