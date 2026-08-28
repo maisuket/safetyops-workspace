@@ -159,4 +159,29 @@ export class SaidasService {
       );
     }
   }
+
+  /**
+   * Remove vários registos de saída de uma vez (exclusão em lote pela tela
+   * de Rastreio, quando o utilizador seleciona várias linhas).
+   */
+  async removeBulk(ids: string[]): Promise<{ count: number }> {
+    try {
+      const uniqueIds = [...new Set(ids)];
+      const result = await this.prisma.saidaRecord.deleteMany({
+        where: { id: { in: uniqueIds } },
+      });
+
+      this.logger.log(`Removidos ${result.count} registo(s) de saída em lote.`);
+
+      return { count: result.count };
+    } catch (error) {
+      this.logger.error(
+        `Erro ao remover registos de saída em lote: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        'Não foi possível remover os registos de saída selecionados.',
+      );
+    }
+  }
 }

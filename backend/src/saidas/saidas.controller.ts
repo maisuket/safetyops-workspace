@@ -20,6 +20,7 @@ import {
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { SaidasService } from './saidas.service';
 import { CreateBulkSaidaDto } from './dto/create-bulk-saida.dto';
+import { DeleteBulkSaidaDto } from './dto/delete-bulk-saida.dto';
 
 @ApiTags('Saidas')
 @ApiBearerAuth()
@@ -65,6 +66,17 @@ export class SaidasController {
       startDate,
       endDate,
     });
+  }
+
+  // Precisa vir ANTES de "@Delete(':id')" — senão o Nest tentaria casar
+  // "bulk" como se fosse o valor do parâmetro :id.
+  @Delete('bulk')
+  @ApiOperation({
+    summary: 'Remove vários registos de saída de uma vez (exclusão em lote)',
+  })
+  @ApiResponse({ status: 200, description: 'Registos removidos com sucesso.' })
+  async removeBulk(@Body() dto: DeleteBulkSaidaDto) {
+    return this.saidasService.removeBulk(dto.ids);
   }
 
   @Delete(':id')

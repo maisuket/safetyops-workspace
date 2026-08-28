@@ -76,4 +76,13 @@ export const SaidasService = {
   async remove(id: string): Promise<{ message: string }> {
     return api.delete<{ message: string }>(`/saidas/${id}`);
   },
+
+  /**
+   * Remove vários registos de saída de uma vez (exclusão em lote, quando o
+   * utilizador seleciona várias linhas no Rastreio de Saídas).
+   * Rota NestJS: DELETE /api/saidas/bulk
+   */
+  async removeBulk(ids: string[]): Promise<{ count: number }> {
+    return api.delete<{ count: number }>("/saidas/bulk", { data: { ids } });
+  },
 };

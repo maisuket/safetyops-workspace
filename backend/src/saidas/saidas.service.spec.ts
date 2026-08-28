@@ -11,6 +11,7 @@ describe('SaidasService', () => {
       createMany: jest.Mock;
       findMany: jest.Mock;
       delete: jest.Mock;
+      deleteMany: jest.Mock;
     };
   };
 
@@ -21,6 +22,7 @@ describe('SaidasService', () => {
         createMany: jest.fn(),
         findMany: jest.fn(),
         delete: jest.fn(),
+        deleteMany: jest.fn(),
       },
     };
 
@@ -77,6 +79,19 @@ describe('SaidasService', () => {
 
       const dataInserida = prisma.saidaRecord.createMany.mock.calls[0][0].data;
       expect(dataInserida[0].dataOcorrencia).toBeNull();
+    });
+  });
+
+  describe('removeBulk', () => {
+    it('remove todos os ids passados numa única chamada e sem duplicar ids repetidos', async () => {
+      prisma.saidaRecord.deleteMany.mockResolvedValue({ count: 2 });
+
+      const result = await service.removeBulk(['id-1', 'id-2', 'id-1']);
+
+      expect(result.count).toBe(2);
+      expect(prisma.saidaRecord.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: ['id-1', 'id-2'] } },
+      });
     });
   });
 

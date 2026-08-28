@@ -8,6 +8,7 @@ import {
   Loader2,
   X,
   Filter,
+  CheckSquare,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useEmployees } from "../../context/EmployeesContext";
@@ -50,6 +51,32 @@ const formatarData = (iso?: string | null) => {
 const formatarDataHora = (iso: string) =>
   new Date(iso).toLocaleString("pt-BR");
 
+// Mesmo padrão visual de checkbox já usado no LaunchModal (Folgas), para
+// manter consistência em vez de introduzir outro estilo de seleção.
+const RowCheckbox = ({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: () => void;
+  label: string;
+}) => (
+  <button
+    type="button"
+    onClick={onChange}
+    aria-label={label}
+    title={label}
+    className={`flex items-center justify-center w-5 h-5 rounded border shrink-0 transition-colors ${
+      checked
+        ? "bg-emerald-500 border-emerald-500"
+        : "border-slate-300 bg-white hover:border-emerald-400"
+    }`}
+  >
+    {checked && <CheckSquare size={14} className="text-white" />}
+  </button>
+);
+
 export const RastreioSaidasPage = () => {
   const { employees } = useEmployees();
 
@@ -60,6 +87,9 @@ export const RastreioSaidasPage = () => {
 
   const [resultados, setResultados] = useState<SaidaRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  // Seleção para exclusão em lote — limpa sempre que uma nova busca é feita,
+  // já que as linhas selecionadas podem não estar mais na lista.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const buscar = async () => {
     try {
@@ -71,12 +101,29 @@ export const RastreioSaidasPage = () => {
         tipo: tipo === "all" ? undefined : tipo,
       });
       setResultados(data);
+      setSelectedIds(new Set());
     } catch (error) {
       console.error("Erro ao buscar rastreio de saídas:", error);
       toast.error("Falha ao buscar o rastreio. Verifique a conexão com o servidor.");
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const allSelected =
+    resultados.length > 0 && selectedIds.size === resultados.length;
+
+  const toggleSelectAll = () => {
+    setSelectedIds(allSelected ? new Set() : new Set(resultados.map((r) => r.id)));
   };
 
   // Carrega a lista inicial (mais recentes primeiro, sem filtros) assim que a tela abre
@@ -103,6 +150,11 @@ export const RastreioSaidasPage = () => {
     try {
       await SaidasService.remove(deleteTargetId);
       setResultados((prev) => prev.filter((r) => r.id !== deleteTargetId));
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(deleteTargetId);
+        return next;
+      });
       toast.success("Registo removido com sucesso.");
     } catch (error) {
       toast.error(
@@ -110,6 +162,25 @@ export const RastreioSaidasPage = () => {
       );
     } finally {
       setDeleteTargetId(null);
+    }
+  };
+
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+
+  const confirmBulkDelete = async () => {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    try {
+      const { count } = await SaidasService.removeBulk(ids);
+      setResultados((prev) => prev.filter((r) => !selectedIds.has(r.id)));
+      setSelectedIds(new Set());
+      toast.success(`${count} registo(s) removido(s) com sucesso.`);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Falha ao excluir. Verifique a conexão.",
+      );
+    } finally {
+      setShowBulkDeleteConfirm(false);
     }
   };
 
@@ -203,11 +274,44 @@ export const RastreioSaidasPage = () => {
           </div>
         </div>
 
+        {/* Barra de ação em lote — só aparece com algo selecionado */}
+        {selectedIds.size > 0 && (
+          <div className="px-6 py-3 border-b border-slate-100 bg-emerald-50/50 flex items-center justify-between gap-3">
+            <span className="text-sm font-bold text-emerald-700">
+              {selectedIds.size} selecionado(s)
+            </span>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedIds(new Set())}
+                className="rounded-xl"
+              >
+                Limpar seleção
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => setShowBulkDeleteConfirm(true)}
+                className="rounded-xl gap-2 bg-rose-600 hover:bg-rose-700 text-white"
+              >
+                <Trash2 size={16} /> Excluir Selecionados
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Resultados */}
         <div className="overflow-x-auto max-h-[600px] custom-scrollbar">
           <Table className="w-full text-left relative bg-white">
             <TableHeader className="bg-slate-50 sticky top-0 z-10 shadow-sm">
               <TableRow className="hover:bg-transparent">
+                <TableHead className="w-10">
+                  <RowCheckbox
+                    checked={allSelected}
+                    onChange={toggleSelectAll}
+                    label="Selecionar todos os resultados"
+                  />
+                </TableHead>
                 <TableHead className="font-semibold text-slate-500">Data</TableHead>
                 <TableHead className="font-semibold text-slate-500">Tipo</TableHead>
                 <TableHead className="font-semibold text-slate-500">Colaborador</TableHead>
@@ -219,7 +323,7 @@ export const RastreioSaidasPage = () => {
             <TableBody>
               {isLoading && (
                 <TableRow className="hover:bg-transparent">
-                  <TableCell colSpan={6} className="py-12 text-center">
+                  <TableCell colSpan={7} className="py-12 text-center">
                     <Loader2 className="animate-spin text-emerald-500 mx-auto mb-2" size={28} />
                     <span className="text-slate-400 text-sm">A buscar registos...</span>
                   </TableCell>
@@ -230,7 +334,17 @@ export const RastreioSaidasPage = () => {
                 resultados.map((r) => {
                   const dataFormatada = formatarData(r.dataOcorrencia);
                   return (
-                    <TableRow key={r.id} className="hover:bg-slate-50 transition-colors">
+                    <TableRow
+                      key={r.id}
+                      className={`transition-colors ${selectedIds.has(r.id) ? "bg-emerald-50/60 hover:bg-emerald-50" : "hover:bg-slate-50"}`}
+                    >
+                      <TableCell>
+                        <RowCheckbox
+                          checked={selectedIds.has(r.id)}
+                          onChange={() => toggleSelected(r.id)}
+                          label={`Selecionar registo de ${r.employee?.name || "colaborador"}`}
+                        />
+                      </TableCell>
                       <TableCell className="text-sm py-4">
                         {dataFormatada ? (
                           <div className="flex flex-col">
@@ -297,7 +411,7 @@ export const RastreioSaidasPage = () => {
 
               {!isLoading && resultados.length === 0 && (
                 <TableRow className="hover:bg-transparent">
-                  <TableCell colSpan={6} className="py-12">
+                  <TableCell colSpan={7} className="py-12">
                     <EmptyState
                       icon={<Search size={32} className="text-slate-300" />}
                       title="Nenhuma saída encontrada"
@@ -327,6 +441,16 @@ export const RastreioSaidasPage = () => {
         description="Tem a certeza que deseja excluir este registo? Esta ação não pode ser desfeita."
         confirmLabel="Excluir"
         onConfirm={confirmDelete}
+      />
+
+      <ConfirmDialog
+        open={showBulkDeleteConfirm}
+        onOpenChange={setShowBulkDeleteConfirm}
+        title="Excluir Registos Selecionados"
+        icon={<Trash2 size={20} />}
+        description={`Tem a certeza que deseja excluir ${selectedIds.size} registo(s) selecionado(s)? Esta ação não pode ser desfeita.`}
+        confirmLabel="Excluir"
+        onConfirm={confirmBulkDelete}
       />
     </div>
   );
