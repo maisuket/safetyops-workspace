@@ -57,7 +57,6 @@ export const ImportSSTModal: React.FC<ImportSSTModalProps> = ({
   const [recordsToImport, setRecordsToImport] = useState<ParsedRecord[]>([]);
   const [unmatchedEmployees, setUnmatchedEmployees] = useState<string[]>([]);
   const [duplicateCount, setDuplicateCount] = useState(0);
-  const [importProgress, setImportProgress] = useState(0);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -246,31 +245,29 @@ export const ImportSSTModal: React.FC<ImportSSTModalProps> = ({
     if (recordsToImport.length === 0) return;
 
     setIsUploading(true);
-    let successCount = 0;
 
     try {
-      // Enviamos em lote, atualizando a barra de progresso
-      for (let i = 0; i < recordsToImport.length; i++) {
-        const record = recordsToImport[i];
-
-        await DocumentsService.create({
+      // Uma única requisição para o lote inteiro, em vez de uma por linha —
+      // uma planilha de centenas de linhas não precisa de centenas de
+      // round-trips sequenciais.
+      const { count } = await DocumentsService.createBulk(
+        recordsToImport.map((record) => ({
           employeeId: record.employeeId,
           docType: record.docType,
           expiryDate: record.expiryDate,
-        });
-
-        successCount++;
-        setImportProgress(Math.round(((i + 1) / recordsToImport.length) * 100));
-      }
+        })),
+      );
 
       toast.success(
-        `Sucesso! ${successCount} prontuários importados para a base de dados.`,
+        `Sucesso! ${count} prontuários importados para a base de dados.`,
       );
       onImportSuccess();
       closeModal();
     } catch (error) {
       toast.error(
-        "Houve um erro de rede ao tentar salvar alguns registos. Verifique a consola.",
+        error instanceof Error
+          ? error.message
+          : "Houve um erro ao salvar os registos. Verifique a conexão.",
       );
       console.error(error);
     } finally {
@@ -457,14 +454,8 @@ export const ImportSSTModal: React.FC<ImportSSTModalProps> = ({
               <Upload className="animate-bounce text-emerald-500" size={48} />
               <div className="text-center w-full">
                 <p className="font-bold text-slate-700 mb-2">
-                  A gravar na base de dados... ({importProgress}%)
+                  A gravar {recordsToImport.length} registo(s) na base de dados...
                 </p>
-                <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-emerald-500 transition-all duration-300"
-                    style={{ width: `${importProgress}%` }}
-                  ></div>
-                </div>
               </div>
             </div>
           )}

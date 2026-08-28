@@ -28,6 +28,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { DocumentsService } from './documents.service';
 import { CreateDocumentDto } from './dto/create-document.dto';
+import { CreateBulkDocumentDto } from './dto/create-bulk-document.dto';
 import { Document } from '@prisma/client';
 import { UpdateDocumentDto } from './dto/update-document.dto';
 
@@ -79,6 +80,17 @@ export class DocumentsController {
     @Body() createDocumentDto: CreateDocumentDto,
   ): Promise<Document> {
     return this.documentsService.create(createDocumentDto);
+  }
+
+  @Post('bulk')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Arquivar vários documentos de uma vez (importação de planilha)',
+  })
+  @ApiResponse({ status: 201, description: 'Documentos arquivados com sucesso.' })
+  @ApiResponse({ status: 404, description: 'Colaborador(es) não encontrado(s).' })
+  async createBulk(@Body() dto: CreateBulkDocumentDto) {
+    return this.documentsService.createBulk(dto);
   }
 
   @Get()

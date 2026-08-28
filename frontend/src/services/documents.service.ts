@@ -1,5 +1,4 @@
 import { api } from "./api";
-import { Employee } from "./employees.service";
 
 export interface Document {
   id: string;
@@ -7,7 +6,6 @@ export interface Document {
   issueDate?: string | null;
   expiryDate: string;
   employeeId: string;
-  employee?: Partial<Employee>; // O backend pode popular isto através de um JOIN (include no Prisma)
   createdAt?: string;
 }
 
@@ -33,6 +31,15 @@ export const DocumentsService = {
    */
   async create(data: CreateDocumentDto): Promise<Document> {
     return api.post<Document>("/documents", data);
+  },
+
+  /**
+   * Arquiva vários documentos de uma vez (usado pela importação de
+   * planilha), em vez de uma requisição por linha.
+   * Rota NestJS: POST /api/documents/bulk
+   */
+  async createBulk(items: CreateDocumentDto[]): Promise<{ count: number }> {
+    return api.post<{ count: number }>("/documents/bulk", { items });
   },
 
   /**

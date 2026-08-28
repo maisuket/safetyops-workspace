@@ -7,6 +7,7 @@ import {
 
 import { PrismaService } from 'src/database/prisma.service';
 import { CreateDocumentDto } from './dto/create-document.dto';
+import { CreateBulkDocumentDto } from './dto/create-bulk-document.dto';
 import { Document } from '@prisma/client';
 import { UpdateDocumentDto } from './dto/update-document.dto';
 
@@ -134,19 +135,61 @@ export class DocumentsService {
   }
 
   /**
-   * Retorna todos os documentos, incluindo os dados básicos do colaborador associado.
+   * Arquiva vários documentos de uma vez (usado pela importação de planilha
+   * de SST) — evita uma requisição HTTP por linha da planilha.
+   */
+  async createBulk(dto: CreateBulkDocumentDto): Promise<{ count: number }> {
+    try {
+      // Valida que todos os colaboradores existem antes de inserir — sem isso,
+      // um único employeeId inválido faz o lote inteiro falhar por violação de
+      // chave estrangeira, sem indicar qual item é o problema.
+      const uniqueIds = [...new Set(dto.items.map((item) => item.employeeId))];
+      const existing = await this.prisma.employee.findMany({
+        where: { id: { in: uniqueIds } },
+        select: { id: true },
+      });
+      const existingIds = new Set(existing.map((e) => e.id));
+      const missingIds = uniqueIds.filter((id) => !existingIds.has(id));
+
+      if (missingIds.length > 0) {
+        throw new NotFoundException(
+          `Colaborador(es) não encontrado(s): ${missingIds.join(', ')}`,
+        );
+      }
+
+      const data = dto.items.map((item) => ({
+        docType: item.docType,
+        issueDate: item.issueDate ? new Date(item.issueDate) : null,
+        expiryDate: new Date(item.expiryDate),
+        employeeId: item.employeeId,
+      }));
+
+      const result = await this.prisma.document.createMany({ data });
+
+      this.logger.log(`Importados ${result.count} documento(s) em lote.`);
+
+      return { count: result.count };
+    } catch (error) {
+      if (error instanceof NotFoundException) throw error;
+
+      this.logger.error(
+        `Erro ao importar documentos em lote: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        'Não foi possível importar os documentos.',
+      );
+    }
+  }
+
+  /**
+   * Retorna todos os documentos. O nome/matrícula do colaborador não é
+   * incluído via JOIN — o frontend já resolve isso a partir do
+   * EmployeesContext, que carrega a lista completa de colaboradores.
    */
   async findAll(): Promise<Document[]> {
     try {
       return await this.prisma.document.findMany({
-        include: {
-          employee: {
-            select: {
-              name: true,
-              enrollment: true,
-            },
-          },
-        },
         orderBy: {
           expiryDate: 'asc', // Ordena exibindo os que vão vencer primeiro
         },
