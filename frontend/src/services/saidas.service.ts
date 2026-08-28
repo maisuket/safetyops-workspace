@@ -33,6 +33,11 @@ export interface SaidaSearchParams {
   endDate?: string;
 }
 
+export interface PaginatedSaidasResponse {
+  data: SaidaRecord[];
+  total: number;
+}
+
 export const SaidasService = {
   /**
    * Grava, num único lote, todas as saídas/ubers emitidos juntos.
@@ -47,18 +52,25 @@ export const SaidasService = {
   },
 
   /**
-   * Rastreio: busca por colaborador, tipo, texto livre e/ou período.
+   * Rastreio: busca por colaborador, tipo, texto livre e/ou por período.
+   * Paginado (mesmo padrão de RecordsService.findAll).
    * Rota NestJS: GET /api/saidas
    */
-  async search(params: SaidaSearchParams = {}): Promise<SaidaRecord[]> {
-    const query = new URLSearchParams();
+  async search(
+    params: SaidaSearchParams = {},
+    page = 1,
+    limit = 20,
+  ): Promise<PaginatedSaidasResponse> {
+    const query = new URLSearchParams({
+      page: String(page),
+      limit: String(limit),
+    });
     if (params.employeeId) query.append("employeeId", params.employeeId);
     if (params.tipo) query.append("tipo", params.tipo);
     if (params.search) query.append("search", params.search);
     if (params.startDate) query.append("startDate", params.startDate);
     if (params.endDate) query.append("endDate", params.endDate);
-    const qs = query.toString();
-    return api.get<SaidaRecord[]>(`/saidas${qs ? `?${qs}` : ""}`);
+    return api.get<PaginatedSaidasResponse>(`/saidas?${query.toString()}`);
   },
 
   /**

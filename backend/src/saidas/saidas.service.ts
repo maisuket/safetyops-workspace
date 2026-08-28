@@ -85,8 +85,15 @@ export class SaidasService {
    * Busca de rastreio: por colaborador, por tipo, por texto livre (nome, motivo,
    * destino) e/ou por período. Quando a saída foi emitida com "data em branco",
    * o período passa a considerar a data de emissão (createdAt) no lugar.
+   * Paginado no mesmo padrão de RecordsService.findAll: a busca é aplicada no
+   * dataset completo (não no frontend), senão um resultado fora da página
+   * atual sumiria da busca sem explicação.
    */
-  async search(params: SaidaSearchParams): Promise<SaidaRecord[]> {
+  async search(
+    params: SaidaSearchParams,
+    page = 1,
+    limit = 20,
+  ): Promise<{ data: SaidaRecord[]; total: number }> {
     const andConditions: Prisma.SaidaRecordWhereInput[] = [];
 
     if (params.employeeId) andConditions.push({ employeeId: params.employeeId });
@@ -113,14 +120,25 @@ export class SaidasService {
       });
     }
 
+    const where: Prisma.SaidaRecordWhereInput = andConditions.length
+      ? { AND: andConditions }
+      : {};
+    const skip = (page - 1) * limit;
+
     try {
-      return await this.prisma.saidaRecord.findMany({
-        where: andConditions.length ? { AND: andConditions } : {},
-        include: {
-          employee: { select: { name: true, enrollment: true } },
-        },
-        orderBy: { createdAt: 'desc' },
-      });
+      const [data, total] = await this.prisma.$transaction([
+        this.prisma.saidaRecord.findMany({
+          where,
+          include: {
+            employee: { select: { name: true, enrollment: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take: limit,
+        }),
+        this.prisma.saidaRecord.count({ where }),
+      ]);
+      return { data, total };
     } catch (error) {
       this.logger.error(`Erro ao buscar saídas: ${error.message}`, error.stack);
       throw new InternalServerErrorException(
@@ -130,10 +148,26 @@ export class SaidasService {
   }
 
   /**
-   * Histórico completo de um colaborador específico.
+   * Histórico completo (sem paginação) de um colaborador específico.
    */
   async findByEmployee(employeeId: string): Promise<SaidaRecord[]> {
-    return this.search({ employeeId });
+    try {
+      return await this.prisma.saidaRecord.findMany({
+        where: { employeeId },
+        include: {
+          employee: { select: { name: true, enrollment: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    } catch (error) {
+      this.logger.error(
+        `Erro ao buscar saídas do colaborador ${employeeId}: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        'Não foi possível buscar o histórico de saídas do colaborador.',
+      );
+    }
   }
 
   /**

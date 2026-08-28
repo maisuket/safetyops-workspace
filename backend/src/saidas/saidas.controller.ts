@@ -9,6 +9,8 @@ import {
   ParseUUIDPipe,
   Delete,
   Query,
+  DefaultValuePipe,
+  ParseIntPipe,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -58,14 +60,16 @@ export class SaidasController {
     @Query('search') search?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page = 1,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit = 20,
   ) {
-    return this.saidasService.search({
-      employeeId,
-      tipo,
-      search,
-      startDate,
-      endDate,
-    });
+    // Teto de proteção: a UI nunca pede mais que algumas dezenas por página.
+    const safeLimit = Math.min(Math.max(limit, 1), 100);
+    return this.saidasService.search(
+      { employeeId, tipo, search, startDate, endDate },
+      page,
+      safeLimit,
+    );
   }
 
   // Precisa vir ANTES de "@Delete(':id')" — senão o Nest tentaria casar

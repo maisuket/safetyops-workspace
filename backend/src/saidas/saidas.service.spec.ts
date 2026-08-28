@@ -10,9 +10,11 @@ describe('SaidasService', () => {
     saidaRecord: {
       createMany: jest.Mock;
       findMany: jest.Mock;
+      count: jest.Mock;
       delete: jest.Mock;
       deleteMany: jest.Mock;
     };
+    $transaction: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -21,9 +23,13 @@ describe('SaidasService', () => {
       saidaRecord: {
         createMany: jest.fn(),
         findMany: jest.fn(),
+        count: jest.fn(),
         delete: jest.fn(),
         deleteMany: jest.fn(),
       },
+      // Simula o comportamento real do $transaction([...]) do Prisma:
+      // apenas resolve todas as promises passadas, na ordem.
+      $transaction: jest.fn((ops: Promise<any>[]) => Promise.all(ops)),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -98,6 +104,7 @@ describe('SaidasService', () => {
   describe('search (rastreio por data)', () => {
     it('inclui saídas sem data (dataOcorrencia null) cujo createdAt caia no período buscado', async () => {
       prisma.saidaRecord.findMany.mockResolvedValue([]);
+      prisma.saidaRecord.count.mockResolvedValue(0);
 
       await service.search({ startDate: '2026-06-01', endDate: '2026-06-30' });
 
@@ -114,6 +121,19 @@ describe('SaidasService', () => {
           }),
         ]),
       );
+    });
+
+    it('pagina os resultados calculando skip/take a partir de page/limit', async () => {
+      prisma.saidaRecord.findMany.mockResolvedValue([{ id: 'saida-1' }]);
+      prisma.saidaRecord.count.mockResolvedValue(45);
+
+      const result = await service.search({}, 3, 20);
+
+      expect(prisma.saidaRecord.findMany.mock.calls[0][0]).toMatchObject({
+        skip: 40,
+        take: 20,
+      });
+      expect(result).toEqual({ data: [{ id: 'saida-1' }], total: 45 });
     });
   });
 });

@@ -9,6 +9,8 @@ import {
   X,
   Filter,
   CheckSquare,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useEmployees } from "../../context/EmployeesContext";
@@ -91,16 +93,27 @@ export const RastreioSaidasPage = () => {
   // já que as linhas selecionadas podem não estar mais na lista.
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  const buscar = async () => {
+  const PAGE_SIZE = 20;
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const totalPages = Math.max(1, Math.ceil(totalRecords / PAGE_SIZE));
+
+  const buscar = async (page = currentPage) => {
     try {
       setIsLoading(true);
-      const data = await SaidasService.search({
-        search: search.trim() || undefined,
-        startDate: startDate || undefined,
-        endDate: endDate || undefined,
-        tipo: tipo === "all" ? undefined : tipo,
-      });
+      const { data, total } = await SaidasService.search(
+        {
+          search: search.trim() || undefined,
+          startDate: startDate || undefined,
+          endDate: endDate || undefined,
+          tipo: tipo === "all" ? undefined : tipo,
+        },
+        page,
+        PAGE_SIZE,
+      );
       setResultados(data);
+      setTotalRecords(total);
+      setCurrentPage(page);
       setSelectedIds(new Set());
     } catch (error) {
       console.error("Erro ao buscar rastreio de saídas:", error);
@@ -109,6 +122,11 @@ export const RastreioSaidasPage = () => {
       setIsLoading(false);
     }
   };
+
+  // Busca explícita (filtros mudaram) sempre reinicia a paginação — senão o
+  // utilizador poderia ficar preso numa página 5 que não existe mais para o
+  // novo filtro.
+  const buscarDoInicio = () => buscar(1);
 
   const toggleSelected = (id: string) => {
     setSelectedIds((prev) => {
@@ -149,13 +167,11 @@ export const RastreioSaidasPage = () => {
     if (!deleteTargetId) return;
     try {
       await SaidasService.remove(deleteTargetId);
-      setResultados((prev) => prev.filter((r) => r.id !== deleteTargetId));
-      setSelectedIds((prev) => {
-        const next = new Set(prev);
-        next.delete(deleteTargetId);
-        return next;
-      });
       toast.success("Registo removido com sucesso.");
+      // Se este era o único registo da página atual (e não é a primeira),
+      // volta para a página anterior em vez de recarregar uma página vazia.
+      const voltarPagina = resultados.length === 1 && currentPage > 1;
+      await buscar(voltarPagina ? currentPage - 1 : currentPage);
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Falha ao excluir. Verifique a conexão.",
@@ -172,9 +188,9 @@ export const RastreioSaidasPage = () => {
     if (ids.length === 0) return;
     try {
       const { count } = await SaidasService.removeBulk(ids);
-      setResultados((prev) => prev.filter((r) => !selectedIds.has(r.id)));
-      setSelectedIds(new Set());
       toast.success(`${count} registo(s) removido(s) com sucesso.`);
+      const voltarPagina = ids.length >= resultados.length && currentPage > 1;
+      await buscar(voltarPagina ? currentPage - 1 : currentPage);
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Falha ao excluir. Verifique a conexão.",
@@ -219,7 +235,7 @@ export const RastreioSaidasPage = () => {
                 placeholder="Buscar por colaborador, motivo ou destino..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && buscar()}
+                onKeyDown={(e) => e.key === "Enter" && buscarDoInicio()}
                 className="w-full pl-9 bg-slate-50 rounded-xl text-sm"
               />
             </div>
@@ -265,7 +281,7 @@ export const RastreioSaidasPage = () => {
                 <X size={16} /> Limpar Filtros
               </Button>
               <Button
-                onClick={buscar}
+                onClick={buscarDoInicio}
                 className="rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700"
               >
                 <Search size={16} /> Buscar
@@ -425,8 +441,35 @@ export const RastreioSaidasPage = () => {
         </div>
 
         {!isLoading && (
-          <div className="p-4 border-t border-slate-100 text-sm text-slate-500 font-medium bg-white">
-            {resultados.length} registo(s) encontrado(s)
+          <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-3 text-sm bg-white">
+            <span className="font-medium text-slate-500">
+              {totalRecords} registo(s) encontrado(s)
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-slate-500">
+                Página {currentPage} de {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => buscar(currentPage - 1)}
+                disabled={currentPage <= 1 || isLoading}
+                className="flex items-center gap-1 rounded-lg"
+              >
+                <ChevronLeft size={16} />
+                Anterior
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => buscar(currentPage + 1)}
+                disabled={currentPage >= totalPages || isLoading}
+                className="flex items-center gap-1 rounded-lg"
+              >
+                Próximo
+                <ChevronRight size={16} />
+              </Button>
+            </div>
           </div>
         )}
       </Card>
