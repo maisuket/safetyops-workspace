@@ -9,6 +9,7 @@ import {
   Loader2,
   MapPin,
   Clock,
+  Timer,
   Briefcase,
   X,
   Plus,
@@ -16,6 +17,7 @@ import {
 } from "lucide-react";
 import { useEmployees } from "../../context/EmployeesContext";
 import { SaidasService } from "../../services/saidas.service";
+import { HoraExtraService } from "../../services/hora-extra.service";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -67,9 +69,9 @@ export const SaidasPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
-  const [tipoFormulario, setTipoFormulario] = useState<"saida" | "uber">(
-    "saida",
-  );
+  const [tipoFormulario, setTipoFormulario] = useState<
+    "saida" | "uber" | "hora_extra"
+  >("saida");
   // A fila de impressão é restaurada do localStorage: antes disso, trocar de
   // aba (ou recarregar a página) descartava silenciosamente tudo que ainda
   // não tinha sido gerado em PDF/Excel.
@@ -94,6 +96,16 @@ export const SaidasPage = () => {
   const [tipoData, setTipoData] = useState("saida");
   const [destino, setDestino] = useState("");
   const [comAssinatura, setComAssinatura] = useState(true);
+
+  // Campos da folha de Relação Hora Extra/Compensação — ao contrário de
+  // Saída/Uber, não existe fila: os dados são preenchidos uma vez e a folha
+  // é gerada na hora com os colaboradores selecionados no checklist acima.
+  const [heDataServico, setHeDataServico] = useState(getISODate());
+  const [heLocal, setHeLocal] = useState("");
+  const [heDescricaoServico, setHeDescricaoServico] = useState("");
+  const [heEnderecoServico, setHeEnderecoServico] = useState("");
+  const [heNumeroOS, setHeNumeroOS] = useState("");
+  const [heObservacao, setHeObservacao] = useState("");
 
   useEffect(() => {
     try {
@@ -618,6 +630,366 @@ export const SaidasPage = () => {
     doc.save(`Solicitacoes_Uber_${dataGeracao.replace(/\//g, "-")}.pdf`);
   };
 
+  // === RELAÇÃO HORA EXTRA/COMPENSAÇÃO (ITM 031) ===
+  // Diferente de Saída/Uber, é um único documento com uma tabela de até 32
+  // colaboradores (paginada em blocos de 32 quando a seleção é maior), dados
+  // do serviço partilhados e um bloco de aprovação com 4 assinaturas.
+  const HORA_EXTRA_ROWS_PER_PAGE = 32;
+
+  const desenharCabecalhoHoraExtra = (doc: any, pageWidth: number) => {
+    const marginX = 8;
+    const topY = 8;
+    const boxH = 16;
+
+    doc.setDrawColor(0);
+    doc.setLineWidth(0.3);
+    doc.rect(marginX, topY, pageWidth - marginX * 2, boxH);
+
+    const logoBoxW = 32;
+    const infoBoxW = 46;
+    const infoBoxX = pageWidth - marginX - infoBoxW;
+    doc.line(marginX + logoBoxW, topY, marginX + logoBoxW, topY + boxH);
+    doc.line(infoBoxX, topY, infoBoxX, topY + boxH);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text("ITAM", marginX + logoBoxW / 2, topY + boxH / 2 + 2, {
+      align: "center",
+    });
+
+    doc.setFontSize(13);
+    doc.text(
+      "RELAÇÃO HORA EXTRA/COMPENSAÇÃO",
+      marginX + logoBoxW + (infoBoxX - (marginX + logoBoxW)) / 2,
+      topY + boxH / 2 + 2,
+      { align: "center" },
+    );
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.5);
+    doc.text("Código: ITM 031", infoBoxX + 2, topY + 5);
+    doc.text("Versão: 02", infoBoxX + 2, topY + 9.5);
+    doc.text("Data da Versão: 02/09/2025", infoBoxX + 2, topY + 14);
+
+    return topY + boxH;
+  };
+
+  const desenharLinhaDeptSetorData = (
+    doc: any,
+    pageWidth: number,
+    y: number,
+    dataFormatada: string,
+  ) => {
+    const marginX = 8;
+    const rowH = 7;
+    const w = pageWidth - marginX * 2;
+    doc.setDrawColor(0);
+    doc.setLineWidth(0.3);
+    doc.rect(marginX, y, w, rowH);
+    const col1 = marginX + w * 0.42;
+    const col2 = marginX + w * 0.78;
+    doc.line(col1, y, col1, y + rowH);
+    doc.line(col2, y, col2, y + rowH);
+
+    const textY = y + rowH / 2 + 1.5;
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    doc.text("DEPARTAMENTO:", marginX + 2, textY);
+    doc.setFont("helvetica", "normal");
+    doc.text(
+      "ASSISTENCIA TÉCNICA",
+      marginX + 2 + doc.getTextWidth("DEPARTAMENTO: "),
+      textY,
+    );
+
+    doc.setFont("helvetica", "bold");
+    doc.text("SETOR:", col1 + 2, textY);
+    doc.setFont("helvetica", "normal");
+    doc.text("ASSISTÊNCIA TÉCNICA", col1 + 2 + doc.getTextWidth("SETOR: "), textY);
+
+    doc.setFont("helvetica", "bold");
+    doc.text("DATA:", col2 + 2, textY);
+    doc.setFont("helvetica", "normal");
+    doc.text(dataFormatada, col2 + 2 + doc.getTextWidth("DATA: "), textY);
+
+    return y + rowH;
+  };
+
+  const desenharRodapeHoraExtra = (doc: any, pageWidth: number, pageHeight: number, y: number) => {
+    const marginX = 8;
+    const w = pageWidth - marginX * 2;
+
+    // Local do(s) Serviço(s) Realizado(s)
+    doc.setDrawColor(0);
+    doc.setLineWidth(0.3);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.text("Local do (s) Serviço (s) Realizado (s):", pageWidth / 2, y + 4, {
+      align: "center",
+    });
+    let curY = y + 7;
+    const boxH1 = 8;
+    doc.rect(marginX, curY, w * 0.55, boxH1);
+    doc.rect(marginX + w * 0.55, curY, w * 0.45, boxH1);
+    doc.setFontSize(7.5);
+    doc.setFont("helvetica", "bolditalic");
+    doc.text(`Local: ${heLocal || "-"}`, marginX + 2, curY + 5);
+    doc.text(`Observação: ${heObservacao || "-"}`, marginX + w * 0.55 + 2, curY + 5);
+    curY += boxH1;
+
+    const boxH2 = 8;
+    doc.rect(marginX, curY, w, boxH2);
+    doc.text(
+      `Descrição do Serviço: ${heDescricaoServico || "-"}`,
+      marginX + 2,
+      curY + 5,
+    );
+    curY += boxH2;
+
+    const boxH3 = 8;
+    doc.rect(marginX, curY, w * 0.7, boxH3);
+    doc.rect(marginX + w * 0.7, curY, w * 0.3, boxH3);
+    doc.text(`Endereço do Serviço: ${heEnderecoServico || "-"}`, marginX + 2, curY + 5);
+    doc.text(`Nº OS.: ${heNumeroOS || "-"}`, marginX + w * 0.7 + 2, curY + 5);
+    curY += boxH3;
+
+    // Nota legal
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(6.5);
+    doc.text(
+      "Assinatura para horas extras realizada. Funcionário (s) acima relacionado (s).",
+      marginX,
+      curY + 4,
+    );
+    curY += 6;
+    doc.setFont("helvetica", "normal");
+    const notas = [
+      "1. ESSE DOCUMENTO SOMENTE TERÁ VALIDADE SE CONSTAR A ASSINATURA NOS TRÊS CAMPOS DE APROVAÇÃO, CONFORME ESPECIFICADO ABAIXO.",
+      "2. ESSE DOCUMENTO NÃO PODERÁ SER RASURADO.",
+      "3. ESSE DOCUMENTO DEVERÁ ACOMPANHAR TODO E QUALQUER SERVIÇO FORA DO HORÁRIO DE EXPEDIENTE, PARA CONTROLE DE HORA EXTRA DO DEPARTAMENTO PESSOAL.",
+    ];
+    notas.forEach((linha, i) => {
+      doc.text(linha, marginX, curY + 3.5 + i * 3.5, { maxWidth: w });
+    });
+    curY += 3.5 * notas.length + 3;
+
+    // Aprovação
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.setFillColor(230, 230, 230);
+    doc.rect(marginX, curY, w, 5, "FD");
+    doc.text("APROVAÇÃO", pageWidth / 2, curY + 3.5, { align: "center" });
+    curY += 5;
+
+    const aprovadores = [
+      "GESTOR RESPONSÁVEL",
+      "DIRETOR INDUSTRIAL",
+      "DIRETOR GERAL",
+      "RECURSOS HUMANOS",
+    ];
+    const colW = w / aprovadores.length;
+    const linhaY = Math.min(curY + 18, pageHeight - 16);
+    aprovadores.forEach((label, i) => {
+      const cx = marginX + colW * i + colW / 2;
+      doc.setDrawColor(0);
+      doc.line(cx - colW * 0.4, linhaY, cx + colW * 0.4, linhaY);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7.5);
+      doc.text(label, cx, linhaY + 4, { align: "center" });
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      doc.text("Data: ___/___/___", cx, linhaY + 8, { align: "center" });
+    });
+  };
+
+  const gerarPDFHoraExtra = async (jsPDF: any, autoTable: any, empsSelecionados: any[]) => {
+    const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const dataFormatada = formatarData(heDataServico);
+
+    const chunks: any[][] = [];
+    for (let i = 0; i < empsSelecionados.length; i += HORA_EXTRA_ROWS_PER_PAGE) {
+      chunks.push(empsSelecionados.slice(i, i + HORA_EXTRA_ROWS_PER_PAGE));
+    }
+    if (chunks.length === 0) chunks.push([]);
+
+    chunks.forEach((chunk, pageIndex) => {
+      if (pageIndex > 0) doc.addPage();
+
+      let y = desenharCabecalhoHoraExtra(doc, pageWidth);
+      y = desenharLinhaDeptSetorData(doc, pageWidth, y, dataFormatada);
+
+      const body: any[] = [];
+      for (let i = 0; i < HORA_EXTRA_ROWS_PER_PAGE; i++) {
+        const emp = chunk[i];
+        body.push([
+          String(i + 1),
+          emp ? heLocal : "",
+          emp ? `${emp.name} - ${emp.enrollment || "S/M"}` : "",
+          "",
+          "",
+          "",
+          "",
+        ]);
+      }
+
+      autoTable(doc, {
+        startY: y,
+        margin: { left: 8, right: 8 },
+        head: [
+          [
+            "ITEM",
+            "LOCAL",
+            "NOME",
+            "ASSINATURA",
+            "HORÁRIO\nENTRADA",
+            "PRECISA\nDE ROTA",
+            "HORÁRIO\nSAÍDA",
+          ],
+        ],
+        body,
+        theme: "grid",
+        styles: { fontSize: 6.5, cellPadding: 1, valign: "middle", lineColor: [0, 0, 0], lineWidth: 0.2 },
+        headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: "bold", halign: "center", fontSize: 6 },
+        columnStyles: {
+          0: { cellWidth: 8, halign: "center" },
+          1: { cellWidth: 22 },
+          2: { cellWidth: 62 },
+          3: { cellWidth: 28 },
+          4: { cellWidth: 16, halign: "center" },
+          5: { cellWidth: 14, halign: "center" },
+          6: { cellWidth: 16, halign: "center" },
+        },
+      });
+
+      const finalY = (doc as any).lastAutoTable.finalY;
+      desenharRodapeHoraExtra(doc, pageWidth, pageHeight, finalY + 2);
+    });
+
+    doc.save(`Relacao_Hora_Extra_${heDataServico}.pdf`);
+  };
+
+  const gerarExcelHoraExtra = async (ExcelJS: any, empsSelecionados: any[]) => {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Hora Extra");
+
+    worksheet.columns = [
+      { header: "ITEM", key: "item", width: 6 },
+      { header: "LOCAL", key: "local", width: 22 },
+      { header: "NOME", key: "nome", width: 40 },
+      { header: "MATRICULA", key: "matricula", width: 14 },
+      { header: "ASSINATURA", key: "assinatura", width: 20 },
+      { header: "HORÁRIO ENTRADA", key: "entrada", width: 16 },
+      { header: "PRECISA DE ROTA (S/N)", key: "rota", width: 18 },
+      { header: "HORÁRIO SAÍDA", key: "saida", width: 16 },
+    ];
+
+    for (let i = 0; i < HORA_EXTRA_ROWS_PER_PAGE; i++) {
+      const emp = empsSelecionados[i];
+      worksheet.addRow({
+        item: i + 1,
+        local: emp ? heLocal : "",
+        nome: emp?.name || "",
+        matricula: emp?.enrollment || "",
+        assinatura: "",
+        entrada: "",
+        rota: "",
+        saida: "",
+      });
+    }
+
+    worksheet.addRow({});
+    worksheet.addRow({ item: "Departamento:", local: "ASSISTENCIA TÉCNICA" });
+    worksheet.addRow({ item: "Setor:", local: "ASSISTÊNCIA TÉCNICA" });
+    worksheet.addRow({ item: "Data:", local: formatarData(heDataServico) });
+    worksheet.addRow({ item: "Local do Serviço:", local: heLocal });
+    worksheet.addRow({ item: "Descrição do Serviço:", local: heDescricaoServico || "-" });
+    worksheet.addRow({ item: "Endereço do Serviço:", local: heEnderecoServico || "-" });
+    worksheet.addRow({ item: "Nº OS:", local: heNumeroOS || "-" });
+    worksheet.addRow({ item: "Observação:", local: heObservacao || "-" });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `Relacao_Hora_Extra_${heDataServico}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const persistHoraExtra = async (empsSelecionados: any[]) => {
+    await HoraExtraService.createBulk({
+      dataServico: heDataServico,
+      local: heLocal,
+      descricaoServico: heDescricaoServico || undefined,
+      enderecoServico: heEnderecoServico || undefined,
+      numeroOS: heNumeroOS || undefined,
+      observacao: heObservacao || undefined,
+      employeeIds: empsSelecionados.map((e) => e.id),
+    });
+  };
+
+  const validarHoraExtra = () => {
+    if (colaboradoresSelecionados.length === 0) {
+      toast.error("Erro: Selecione pelo menos um colaborador.");
+      return false;
+    }
+    if (!heLocal.trim()) {
+      toast.error("Erro: Preencha o local do serviço.");
+      return false;
+    }
+    return true;
+  };
+
+  const handleGerarHoraExtraPDF = async () => {
+    if (!validarHoraExtra()) return;
+    const empsSelecionados = colaboradoresSelecionados
+      .map((id) => employees.find((e) => e.id === id))
+      .filter(Boolean);
+
+    try {
+      setIsLoading(true);
+      const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+        import("jspdf"),
+        import("jspdf-autotable"),
+      ]);
+      await gerarPDFHoraExtra(jsPDF, autoTable, empsSelecionados);
+      await persistHoraExtra(empsSelecionados);
+      toast.success("Folha de Hora Extra gerada com sucesso!");
+      setColaboradoresSelecionados([]);
+    } catch (error) {
+      console.error("Erro ao gerar folha de hora extra:", error);
+      toast.error("Erro ao gerar a folha de Hora Extra.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGerarHoraExtraExcel = async () => {
+    if (!validarHoraExtra()) return;
+    const empsSelecionados = colaboradoresSelecionados
+      .map((id) => employees.find((e) => e.id === id))
+      .filter(Boolean);
+
+    try {
+      setIsLoading(true);
+      const ExcelJS = await import("exceljs");
+      await gerarExcelHoraExtra(ExcelJS, empsSelecionados);
+      await persistHoraExtra(empsSelecionados);
+      toast.success("Folha de Hora Extra (Excel) gerada com sucesso!");
+      setColaboradoresSelecionados([]);
+    } catch (error) {
+      console.error("Erro ao gerar folha de hora extra:", error);
+      toast.error("Erro ao gerar a folha de Hora Extra.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Grava no backend, para fins de rastreio, os registros ainda não persistidos
   // deste lote. É chamado no momento em que o PDF/Excel é de facto gerado (a
   // emissão real), e não quando o item só é adicionado à lista de impressão.
@@ -790,6 +1162,13 @@ export const SaidasPage = () => {
               >
                 <Car size={18} className="mr-2" /> Solicitação de Uber
               </Button>
+              <Button
+                variant="ghost"
+                className={`flex-1 h-auto py-3 text-sm font-bold rounded-xl transition-all ${tipoFormulario === "hora_extra" ? "bg-white text-amber-600 shadow-sm ring-1 ring-slate-200/50 hover:bg-white hover:text-amber-700" : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"}`}
+                onClick={() => setTipoFormulario("hora_extra")}
+              >
+                <Timer size={18} className="mr-2" /> Hora Extra
+              </Button>
             </div>
 
             {/* Colaboradores Checklist */}
@@ -852,140 +1231,219 @@ export const SaidasPage = () => {
               </div>
             </div>
 
-            {/* Data e Opções Condicionais */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1">
-                  Data da Ocorrência
-                </label>
-                <Input
-                  type="date"
-                  className={`w-full border-slate-200 rounded-xl h-12 px-4 transition-all ${dataEmBranco ? "bg-slate-100 text-slate-400 cursor-not-allowed opacity-60" : "bg-slate-50"}`}
-                  value={dataEmBranco ? "" : dataSelecionada}
-                  onChange={(e) => setDataSelecionada(e.target.value)}
-                  disabled={dataEmBranco}
-                />
-                <label className="flex items-center gap-2 mt-2 cursor-pointer select-none">
-                  <div
-                    className={`flex items-center justify-center w-4 h-4 rounded border shrink-0 transition-all ${dataEmBranco ? "bg-slate-700 border-slate-700" : "border-slate-300 bg-white"}`}
-                    onClick={() => setDataEmBranco((v) => !v)}
-                  >
-                    {dataEmBranco && (
-                      <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                        <path d="M1.5 5L4 7.5L8.5 2.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    )}
-                  </div>
-                  <span
-                    className="text-xs font-medium text-slate-500"
-                    onClick={() => setDataEmBranco((v) => !v)}
-                  >
-                    Emitir com data em branco
-                  </span>
-                  <input
-                    type="checkbox"
-                    className="hidden"
-                    checked={dataEmBranco}
-                    onChange={(e) => setDataEmBranco(e.target.checked)}
-                  />
-                </label>
-              </div>
-
-              {tipoFormulario === "saida" && (
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-1">
-                    Preencher data em:
-                  </label>
-                  <div className="flex bg-slate-50 border border-slate-200 rounded-xl p-1 h-12">
-                    <label
-                      className={`flex-1 flex items-center justify-center cursor-pointer rounded-lg text-sm font-bold transition-all ${tipoData === "saida" ? "bg-white text-slate-800 shadow-sm ring-1 ring-slate-200/50" : "text-slate-500 hover:text-slate-700"}`}
-                    >
-                      <input
-                        type="radio"
-                        className="hidden"
-                        value="saida"
-                        checked={tipoData === "saida"}
-                        onChange={(e) => setTipoData(e.target.value)}
-                      />
-                      Saída
+            {tipoFormulario !== "hora_extra" ? (
+              <>
+                {/* Data e Opções Condicionais */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1">
+                      Data da Ocorrência
                     </label>
-                    <label
-                      className={`flex-1 flex items-center justify-center cursor-pointer rounded-lg text-sm font-bold transition-all ${tipoData === "entrada" ? "bg-white text-slate-800 shadow-sm ring-1 ring-slate-200/50" : "text-slate-500 hover:text-slate-700"}`}
-                    >
+                    <Input
+                      type="date"
+                      className={`w-full border-slate-200 rounded-xl h-12 px-4 transition-all ${dataEmBranco ? "bg-slate-100 text-slate-400 cursor-not-allowed opacity-60" : "bg-slate-50"}`}
+                      value={dataEmBranco ? "" : dataSelecionada}
+                      onChange={(e) => setDataSelecionada(e.target.value)}
+                      disabled={dataEmBranco}
+                    />
+                    <label className="flex items-center gap-2 mt-2 cursor-pointer select-none">
+                      <div
+                        className={`flex items-center justify-center w-4 h-4 rounded border shrink-0 transition-all ${dataEmBranco ? "bg-slate-700 border-slate-700" : "border-slate-300 bg-white"}`}
+                        onClick={() => setDataEmBranco((v) => !v)}
+                      >
+                        {dataEmBranco && (
+                          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                            <path d="M1.5 5L4 7.5L8.5 2.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        )}
+                      </div>
+                      <span
+                        className="text-xs font-medium text-slate-500"
+                        onClick={() => setDataEmBranco((v) => !v)}
+                      >
+                        Emitir com data em branco
+                      </span>
                       <input
-                        type="radio"
+                        type="checkbox"
                         className="hidden"
-                        value="entrada"
-                        checked={tipoData === "entrada"}
-                        onChange={(e) => setTipoData(e.target.value)}
+                        checked={dataEmBranco}
+                        onChange={(e) => setDataEmBranco(e.target.checked)}
                       />
-                      Entrada
                     </label>
                   </div>
-                </div>
-              )}
-              {tipoFormulario === "uber" && (
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-1">
-                    Destino (Geral)
-                  </label>
-                  <Select value={destino} onValueChange={setDestino}>
-                    <SelectTrigger className="w-full bg-slate-50 border-slate-200 rounded-xl h-12 px-4">
-                      <SelectValue placeholder="Selecione..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="_">VAZIO</SelectItem>
-                      <SelectItem value="ITAM X CASA">ITAM X CASA</SelectItem>
-                      <SelectItem value="CASA X ITAM">CASA X ITAM</SelectItem>
-                      <SelectItem value="CASA X AEGEA RNA">
-                        CASA X AEGEA RNA
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-            </div>
 
-            <div className="mb-6">
-              <label className="flex items-center space-x-3 cursor-pointer">
-                <div
-                  className={`flex items-center justify-center w-5 h-5 rounded border ${comAssinatura ? "bg-slate-800 border-slate-800 text-white" : "border-slate-300 bg-slate-50"}`}
-                >
-                  {comAssinatura && (
-                    <CheckSquare size={14} className="text-white" />
+                  {tipoFormulario === "saida" && (
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-1">
+                        Preencher data em:
+                      </label>
+                      <div className="flex bg-slate-50 border border-slate-200 rounded-xl p-1 h-12">
+                        <label
+                          className={`flex-1 flex items-center justify-center cursor-pointer rounded-lg text-sm font-bold transition-all ${tipoData === "saida" ? "bg-white text-slate-800 shadow-sm ring-1 ring-slate-200/50" : "text-slate-500 hover:text-slate-700"}`}
+                        >
+                          <input
+                            type="radio"
+                            className="hidden"
+                            value="saida"
+                            checked={tipoData === "saida"}
+                            onChange={(e) => setTipoData(e.target.value)}
+                          />
+                          Saída
+                        </label>
+                        <label
+                          className={`flex-1 flex items-center justify-center cursor-pointer rounded-lg text-sm font-bold transition-all ${tipoData === "entrada" ? "bg-white text-slate-800 shadow-sm ring-1 ring-slate-200/50" : "text-slate-500 hover:text-slate-700"}`}
+                        >
+                          <input
+                            type="radio"
+                            className="hidden"
+                            value="entrada"
+                            checked={tipoData === "entrada"}
+                            onChange={(e) => setTipoData(e.target.value)}
+                          />
+                          Entrada
+                        </label>
+                      </div>
+                    </div>
+                  )}
+                  {tipoFormulario === "uber" && (
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-1">
+                        Destino (Geral)
+                      </label>
+                      <Select value={destino} onValueChange={setDestino}>
+                        <SelectTrigger className="w-full bg-slate-50 border-slate-200 rounded-xl h-12 px-4">
+                          <SelectValue placeholder="Selecione..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="_">VAZIO</SelectItem>
+                          <SelectItem value="ITAM X CASA">ITAM X CASA</SelectItem>
+                          <SelectItem value="CASA X ITAM">CASA X ITAM</SelectItem>
+                          <SelectItem value="CASA X AEGEA RNA">
+                            CASA X AEGEA RNA
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   )}
                 </div>
-                <span className="text-sm font-medium text-slate-600">
-                  Incluir assinatura do responsável no PDF gerado
-                </span>
-                <input
-                  type="checkbox"
-                  className="hidden"
-                  checked={comAssinatura}
-                  onChange={(e) => setComAssinatura(e.target.checked)}
-                />
-              </label>
-            </div>
 
-            <div className="mb-8 p-4 bg-slate-50 rounded-2xl border border-slate-100">
-              <label className="block text-sm font-bold text-slate-700 mb-1">
-                Motivo (Aplicado a todos os selecionados)
-              </label>
-              <Input
-                type="text"
-                className="w-full bg-slate-50 border-slate-200 rounded-xl h-12 px-4 uppercase"
-                value={motivo}
-                onChange={(e) => setMotivo(e.target.value.toLocaleUpperCase())}
-                placeholder="Ex: Consulta médica / Serviço Externo"
-              />
-            </div>
+                <div className="mb-6">
+                  <label className="flex items-center space-x-3 cursor-pointer">
+                    <div
+                      className={`flex items-center justify-center w-5 h-5 rounded border ${comAssinatura ? "bg-slate-800 border-slate-800 text-white" : "border-slate-300 bg-slate-50"}`}
+                    >
+                      {comAssinatura && (
+                        <CheckSquare size={14} className="text-white" />
+                      )}
+                    </div>
+                    <span className="text-sm font-medium text-slate-600">
+                      Incluir assinatura do responsável no PDF gerado
+                    </span>
+                    <input
+                      type="checkbox"
+                      className="hidden"
+                      checked={comAssinatura}
+                      onChange={(e) => setComAssinatura(e.target.checked)}
+                    />
+                  </label>
+                </div>
 
-            <Button
-              onClick={handleAddRegistro}
-              className={`w-full h-14 text-white font-bold rounded-2xl shadow-lg flex items-center justify-center gap-2 ${tipoFormulario === "saida" ? "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20" : "bg-blue-600 hover:bg-blue-700 shadow-blue-600/20"}`}
-            >
-              <Plus size={20} /> Adicionar à Lista de Impressão
-            </Button>
+                <div className="mb-8 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <label className="block text-sm font-bold text-slate-700 mb-1">
+                    Motivo (Aplicado a todos os selecionados)
+                  </label>
+                  <Input
+                    type="text"
+                    className="w-full bg-slate-50 border-slate-200 rounded-xl h-12 px-4 uppercase"
+                    value={motivo}
+                    onChange={(e) => setMotivo(e.target.value.toLocaleUpperCase())}
+                    placeholder="Ex: Consulta médica / Serviço Externo"
+                  />
+                </div>
+
+                <Button
+                  onClick={handleAddRegistro}
+                  className={`w-full h-14 text-white font-bold rounded-2xl shadow-lg flex items-center justify-center gap-2 ${tipoFormulario === "saida" ? "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20" : "bg-blue-600 hover:bg-blue-700 shadow-blue-600/20"}`}
+                >
+                  <Plus size={20} /> Adicionar à Lista de Impressão
+                </Button>
+              </>
+            ) : (
+              <>
+                {/* Dados do Serviço (Relação Hora Extra/Compensação) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1">
+                      Data do Serviço
+                    </label>
+                    <Input
+                      type="date"
+                      className="w-full bg-slate-50 border-slate-200 rounded-xl h-12 px-4"
+                      value={heDataServico}
+                      onChange={(e) => setHeDataServico(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1">
+                      Nº OS (Opcional)
+                    </label>
+                    <Input
+                      type="text"
+                      className="w-full bg-slate-50 border-slate-200 rounded-xl h-12 px-4"
+                      value={heNumeroOS}
+                      onChange={(e) => setHeNumeroOS(e.target.value)}
+                      placeholder="Ex: OS-4521"
+                    />
+                  </div>
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-bold text-slate-700 mb-1">
+                    Local do Serviço
+                  </label>
+                  <Input
+                    type="text"
+                    className="w-full bg-slate-50 border-slate-200 rounded-xl h-12 px-4"
+                    value={heLocal}
+                    onChange={(e) => setHeLocal(e.target.value.toLocaleUpperCase())}
+                    placeholder="Ex: AMBAR ENERGIA - RORAIMA"
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-bold text-slate-700 mb-1">
+                    Descrição do Serviço (Opcional)
+                  </label>
+                  <Input
+                    type="text"
+                    className="w-full bg-slate-50 border-slate-200 rounded-xl h-12 px-4"
+                    value={heDescricaoServico}
+                    onChange={(e) => setHeDescricaoServico(e.target.value)}
+                    placeholder="Ex: Parametrização e testes em relé"
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-bold text-slate-700 mb-1">
+                    Endereço do Serviço (Opcional)
+                  </label>
+                  <Input
+                    type="text"
+                    className="w-full bg-slate-50 border-slate-200 rounded-xl h-12 px-4"
+                    value={heEnderecoServico}
+                    onChange={(e) => setHeEnderecoServico(e.target.value)}
+                  />
+                </div>
+                <div className="mb-8">
+                  <label className="block text-sm font-bold text-slate-700 mb-1">
+                    Observação (Opcional)
+                  </label>
+                  <Input
+                    type="text"
+                    className="w-full bg-slate-50 border-slate-200 rounded-xl h-12 px-4"
+                    value={heObservacao}
+                    onChange={(e) => setHeObservacao(e.target.value)}
+                  />
+                </div>
+              </>
+            )}
           </Card>
         </div>
 
@@ -1000,30 +1458,41 @@ export const SaidasPage = () => {
               3. Gerar Documentos
             </h3>
             <p className="text-slate-400 font-medium text-sm mb-8 relative z-10">
-              Gere os ficheiros finalizados em PDF ou Excel com base na lista de{" "}
-              {tipoFormulario === "saida" ? "Saída" : "Uber"} configurada
-              abaixo.
+              {tipoFormulario === "hora_extra"
+                ? `Gere a folha de Relação Hora Extra/Compensação com os ${colaboradoresSelecionados.length} colaborador(es) selecionado(s).`
+                : <>Gere os ficheiros finalizados em PDF ou Excel com base na lista de{" "}
+                    {tipoFormulario === "saida" ? "Saída" : "Uber"} configurada
+                    abaixo.</>}
             </p>
 
             <div className="flex flex-col gap-3 relative z-10">
               <Button
-                onClick={handleGerarPDF}
-                disabled={registrosFiltrados.length === 0}
+                onClick={tipoFormulario === "hora_extra" ? handleGerarHoraExtraPDF : handleGerarPDF}
+                disabled={
+                  tipoFormulario === "hora_extra"
+                    ? colaboradoresSelecionados.length === 0 || !heLocal.trim()
+                    : registrosFiltrados.length === 0
+                }
                 className="w-full h-14 bg-rose-500 hover:bg-rose-600 disabled:bg-slate-800 disabled:text-slate-500 text-white font-bold rounded-2xl flex items-center justify-center gap-2"
               >
-                <FileText size={20} /> Baixar PDF Prontos
+                <FileText size={20} /> {tipoFormulario === "hora_extra" ? "Gerar PDF" : "Baixar PDF Prontos"}
               </Button>
               <Button
-                onClick={gerarExcel}
-                disabled={registrosFiltrados.length === 0}
+                onClick={tipoFormulario === "hora_extra" ? handleGerarHoraExtraExcel : gerarExcel}
+                disabled={
+                  tipoFormulario === "hora_extra"
+                    ? colaboradoresSelecionados.length === 0 || !heLocal.trim()
+                    : registrosFiltrados.length === 0
+                }
                 className="w-full h-14 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-800 disabled:text-slate-500 text-white font-bold rounded-2xl flex items-center justify-center gap-2"
               >
-                <Download size={20} /> Exportar Planilha Excel
+                <Download size={20} /> {tipoFormulario === "hora_extra" ? "Gerar Excel" : "Exportar Planilha Excel"}
               </Button>
             </div>
           </div>
 
-          {/* Lista de Registros */}
+          {/* Lista de Registros — não se aplica a Hora Extra, que gera direto */}
+          {tipoFormulario !== "hora_extra" && (
           <Card className="rounded-3xl shadow-sm border-slate-100 p-6 md:p-8 flex flex-col h-[500px]">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 tracking-tight">
@@ -1106,6 +1575,7 @@ export const SaidasPage = () => {
               )}
             </div>
           </Card>
+          )}
         </div>
       </div>
 
