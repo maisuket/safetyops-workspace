@@ -9,6 +9,7 @@ import { EmployeesModule } from './employees/employees.module';
 import { DocumentsModule } from './documents/documents.module';
 import { AuthModule } from './auth/auth.module';
 import { SaidasModule } from './saidas/saidas.module';
+import { HoraExtraModule } from './hora-extra/hora-extra.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { SaidasModule } from './saidas/saidas.module';
     EmployeesModule,
     DocumentsModule,
     SaidasModule,
+    HoraExtraModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
