@@ -7,7 +7,6 @@ import {
   Search,
   CheckSquare,
   Loader2,
-  AlertCircle,
   MapPin,
   Clock,
   Briefcase,
@@ -15,7 +14,7 @@ import {
   Plus,
   User,
 } from "lucide-react";
-import { EmployeesService } from "../../services/employees.service";
+import { useEmployees } from "../../context/EmployeesContext";
 import { SaidasService } from "../../services/saidas.service";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,16 +51,6 @@ const getISODate = (date = new Date()) => {
 
 const SAIDAS_FILA_STORAGE_KEY = "itam_saidas_fila_impressao";
 
-const loadScript = (src: string) => {
-  return new Promise<boolean>((resolve) => {
-    const script = document.createElement("script");
-    script.src = src;
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
-    document.head.appendChild(script);
-  });
-};
-
 const formatarData = (isoDate: string) => {
   if (!isoDate) return "";
   const [year, month, day] = isoDate.split("-");
@@ -70,11 +59,12 @@ const formatarData = (isoDate: string) => {
 
 export const SaidasPage = () => {
   // === ESTADOS ===
-  const [employees, setEmployees] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [libsLoaded, setLibsLoaded] = useState(false);
-  const [libsFailed, setLibsFailed] = useState(false);
-  const [isLoadingLibs, setIsLoadingLibs] = useState(true);
+  const { employees: allEmployees, isLoadingEmployees } = useEmployees();
+  const employees = useMemo(
+    () => allEmployees.filter((e: any) => e.active !== false),
+    [allEmployees],
+  );
+  const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
   const [tipoFormulario, setTipoFormulario] = useState<"saida" | "uber">(
@@ -113,58 +103,6 @@ export const SaidasPage = () => {
       // funcionando normalmente em memória, só não sobrevive a um reload.
     }
   }, [registros]);
-
-  // Carrega jsPDF e ExcelJS via CDN. Extraída do useEffect para poder ser
-  // chamada de novo por um botão "Tentar novamente" caso o CDN falhe (rede
-  // instável ou serviço fora do ar) — sem isso, os botões de Gerar PDF/Excel
-  // ficavam desabilitados para sempre, sem qualquer explicação ao utilizador.
-  const initLibs = async () => {
-    setIsLoadingLibs(true);
-    setLibsFailed(false);
-    try {
-      const [jspdf, exceljs] = await Promise.all([
-        loadScript(
-          "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
-        ),
-        loadScript(
-          "https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js",
-        ),
-      ]);
-
-      if (jspdf && exceljs) {
-        setLibsLoaded(true);
-      } else {
-        setLibsFailed(true);
-        toast.error(
-          "Não foi possível carregar os componentes de geração de PDF/Excel. Verifique sua conexão com a internet.",
-        );
-      }
-    } finally {
-      setIsLoadingLibs(false);
-    }
-  };
-
-  // === INICIALIZAÇÃO ===
-  useEffect(() => {
-    const fetchEmployees = async () => {
-      try {
-        const response = await EmployeesService.findAll(1, 1000);
-        // Filtramos apenas os ativos para o formulário
-        setEmployees(response.data.filter((e: any) => e.active !== false));
-      } catch (error) {
-        console.error("Erro ao buscar colaboradores:", error);
-        toast.error(
-          "Falha ao carregar a lista de colaboradores. Verifique a conexão com o servidor.",
-        );
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    initLibs();
-    fetchEmployees();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const filteredEmployees = useMemo(() => {
     return employees.filter((emp) =>
@@ -295,9 +233,7 @@ export const SaidasPage = () => {
     }
   };
 
-  const gerarPDFSaida = async (registrosSaida: any[], assets: any) => {
-    // @ts-ignore
-    const { jsPDF } = window.jspdf;
+  const gerarPDFSaida = async (jsPDF: any, registrosSaida: any[], assets: any) => {
     const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
 
     if (assets.fontNormalBase64) setupDocFonts(doc, assets);
@@ -461,9 +397,7 @@ export const SaidasPage = () => {
     doc.save(`Autorizacoes_Saida_${dataSelecionada}.pdf`);
   };
 
-  const gerarPDFUber = async (registrosUber: any[], assets: any) => {
-    // @ts-ignore
-    const { jsPDF } = window.jspdf;
+  const gerarPDFUber = async (jsPDF: any, registrosUber: any[], assets: any) => {
     const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
 
     const marginX = 10,
@@ -724,10 +658,13 @@ export const SaidasPage = () => {
 
     try {
       setIsLoading(true);
-      const assets = await loadAssets(comAssinatura);
+      const [{ default: jsPDF }, assets] = await Promise.all([
+        import("jspdf"),
+        loadAssets(comAssinatura),
+      ]);
       if (tipoFormulario === "saida")
-        await gerarPDFSaida(registrosParaGerar, assets);
-      else await gerarPDFUber(registrosParaGerar, assets);
+        await gerarPDFSaida(jsPDF, registrosParaGerar, assets);
+      else await gerarPDFUber(jsPDF, registrosParaGerar, assets);
       toast.success("PDF gerado com sucesso!");
       await persistRegistros(registrosParaGerar);
     } catch (error) {
@@ -741,11 +678,11 @@ export const SaidasPage = () => {
     const registrosParaGerar = registros.filter(
       (r) => r.tipoFormulario === tipoFormulario,
     );
-    if (registrosParaGerar.length === 0 || !window.ExcelJS) return;
+    if (registrosParaGerar.length === 0) return;
 
     try {
-      // @ts-ignore
-      const workbook = new window.ExcelJS.Workbook();
+      const ExcelJS = await import("exceljs");
+      const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet("Dados");
 
       if (tipoFormulario === "saida") {
@@ -800,7 +737,7 @@ export const SaidasPage = () => {
   // === RENDERIZAÇÃO DA UI ===
   return (
     <div className="p-4 md:p-8 animate-in fade-in duration-500 max-w-6xl mx-auto relative h-full flex flex-col">
-      {isLoading && (
+      {(isLoadingEmployees || isLoading) && (
         <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-50 flex items-center justify-center rounded-3xl">
           <div className="flex flex-col items-center gap-3">
             <Loader2 size={40} className="text-emerald-500 animate-spin" />
@@ -1068,39 +1005,17 @@ export const SaidasPage = () => {
               abaixo.
             </p>
 
-            {libsFailed && (
-              <div className="mb-4 p-4 bg-rose-500/10 border border-rose-500/30 rounded-2xl flex flex-col gap-3 relative z-10">
-                <span className="text-sm text-rose-300 flex items-center gap-2">
-                  <AlertCircle size={16} className="shrink-0" />
-                  Não foi possível carregar os componentes de PDF/Excel
-                  (verifique sua internet).
-                </span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={initLibs}
-                  disabled={isLoadingLibs}
-                  className="w-full bg-transparent border-rose-400/40 text-rose-200 hover:bg-rose-500/20 hover:text-white"
-                >
-                  {isLoadingLibs ? (
-                    <Loader2 size={16} className="animate-spin mr-2" />
-                  ) : null}
-                  Tentar novamente
-                </Button>
-              </div>
-            )}
-
             <div className="flex flex-col gap-3 relative z-10">
               <Button
                 onClick={handleGerarPDF}
-                disabled={registrosFiltrados.length === 0 || !libsLoaded}
+                disabled={registrosFiltrados.length === 0}
                 className="w-full h-14 bg-rose-500 hover:bg-rose-600 disabled:bg-slate-800 disabled:text-slate-500 text-white font-bold rounded-2xl flex items-center justify-center gap-2"
               >
                 <FileText size={20} /> Baixar PDF Prontos
               </Button>
               <Button
                 onClick={gerarExcel}
-                disabled={registrosFiltrados.length === 0 || !libsLoaded}
+                disabled={registrosFiltrados.length === 0}
                 className="w-full h-14 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-800 disabled:text-slate-500 text-white font-bold rounded-2xl flex items-center justify-center gap-2"
               >
                 <Download size={20} /> Exportar Planilha Excel
