@@ -1,5 +1,4 @@
 import { api } from "./api";
-import { Employee } from "./employees.service";
 
 // Tipos baseados nos DTOs do nosso NestJS
 export type RecordType =
@@ -17,7 +16,6 @@ export interface Record {
   refDate?: string;
   justification?: string;
   employeeId: string;
-  employee?: Partial<Employee>; // O backend pode popular isso num JOIN (include no Prisma)
 }
 
 export interface CreateBulkRecordDto {

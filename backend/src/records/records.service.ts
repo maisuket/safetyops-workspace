@@ -117,7 +117,8 @@ export class RecordsService {
   }
 
   /**
-   * Retorna todos os registos, incluindo os dados básicos do colaborador associado
+   * Retorna os registos paginados, com busca opcional por nome/descrição/
+   * referência/justificativa/local e filtro por tipo.
    */
   async findAll(
     page = 1,
@@ -146,18 +147,13 @@ export class RecordsService {
     };
 
     const [records, total] = await this.prisma.$transaction([
+      // Sem include do employee: o frontend (History.tsx) já resolve o nome
+      // do colaborador a partir do EmployeesContext, então esse JOIN nunca
+      // era lido — só custava trabalho extra em toda página do histórico.
       this.prisma.record.findMany({
         where,
         skip,
         take: limit,
-        include: {
-          employee: {
-            select: {
-              name: true,
-              active: true,
-            },
-          },
-        },
         orderBy: {
           date: 'desc', // Ordenar do mais recente para o mais antigo
         },
