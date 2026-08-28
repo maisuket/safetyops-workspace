@@ -1,5 +1,4 @@
 import React, { useState, useRef } from "react";
-import * as XLSX from "xlsx";
 import {
   X,
   Upload,
@@ -70,7 +69,10 @@ export const ImportSSTModal: React.FC<ImportSSTModalProps> = ({
   };
 
   const parseExcel = async (file: File, employees: any[]) => {
-    const buffer = await file.arrayBuffer();
+    const [buffer, XLSX] = await Promise.all([
+      file.arrayBuffer(),
+      import("xlsx"),
+    ]);
     const workbook = XLSX.read(buffer, { type: "array" });
 
     const sheet = workbook.Sheets[workbook.SheetNames[0]];

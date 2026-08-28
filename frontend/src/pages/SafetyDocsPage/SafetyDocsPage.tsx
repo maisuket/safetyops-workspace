@@ -1,7 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import * as XLSX from "xlsx";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 import { useEmployees } from "../../context/EmployeesContext";
 import {
   AlertTriangle,
@@ -308,7 +305,8 @@ export const SafetyDocsPage = () => {
     };
   };
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
+    const XLSX = await import("xlsx");
     const data = filteredDocuments.map((doc) => {
       const emp = employees.find((e) => e.id === doc.employeeId);
       const info = getStatusInfo(doc.expiryDate);
@@ -327,7 +325,11 @@ export const SafetyDocsPage = () => {
     XLSX.writeFile(wb, `ITAM_SST_Status_${new Date().toLocaleDateString().replace(/\//g, "-")}.xlsx`);
   };
 
-  const exportToPDF = () => {
+  const exportToPDF = async () => {
+    const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+      import("jspdf"),
+      import("jspdf-autotable"),
+    ]);
     const doc = new jsPDF("landscape");
     doc.text("ITAM - Assistência Técnica - Controle de SST (NRs e ASOs)", 14, 15);
     doc.setFontSize(10);

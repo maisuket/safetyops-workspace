@@ -1,6 +1,4 @@
 import React, { useEffect, useState } from "react";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 import {
   ChevronLeft,
   Clock,
@@ -82,7 +80,11 @@ export const EmployeeDetails: React.FC<EmployeeDetailsProps> = ({
   const folgasDoFuncionario = folgas.map((f) => f.refDate);
 
   // Lógica de Exportação do Extrato Individual
-  const generateExtractPDF = () => {
+  const generateExtractPDF = async () => {
+    const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+      import("jspdf"),
+      import("jspdf-autotable"),
+    ]);
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
