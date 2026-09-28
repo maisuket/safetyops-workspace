@@ -4,3 +4,11 @@ dist/
 build/
 .next/
 coverage/
+
+# Banco de dados local de desenvolvimento — dado real de trabalho, não deve
+# ser versionado (um git checkout/reset nele já causou perda de dados reais
+# do usuário ao ser confundido com um fixture/seed).
+backend/prisma/prisma/dev.db
+backend/prisma/prisma/dev.db-journal
+backend/prisma/prisma/dev.db-wal
+backend/prisma/prisma/dev.db-shm
