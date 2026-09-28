@@ -8,6 +8,7 @@ import {
   ShieldCheck,
   Users,
   Hexagon,
+  Timer,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -23,6 +24,7 @@ export const Sidebar = ({ activePage, setActivePage, onLogout }) => {
   const menuItems = [
     { id: "folgas", icon: Calendar, label: "Controle de Folgas" },
     { id: "saidas", icon: Truck, label: "Gestão de Saídas" },
+    { id: "hora-extra", icon: Timer, label: "Hora Extra" },
     { id: "rastreio-saidas", icon: Search, label: "Rastreio de Saídas" },
     { id: "sst", icon: ShieldCheck, label: "Safety / SST" },
     { id: "equipe", icon: Users, label: "Gestão de Equipe" },
